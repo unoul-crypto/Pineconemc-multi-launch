@@ -84,10 +84,12 @@
 #include "ApplicationMessage.h"
 
 #include <iostream>
+#include <algorithm>
 #include <mutex>
 
 #include <QAccessible>
 #include <QCommandLineParser>
+#include <QCheckBox>
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
@@ -725,6 +727,7 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         m_settings->registerSetting("AutoCloseConsole", false);
         m_settings->registerSetting("ShowConsoleOnError", true);
         m_settings->registerSetting("LogPrePostOutput", true);
+        m_settings->registerSetting("SuppressConcurrentLaunchWarning", false);
 
         // Window Size
         m_settings->registerSetting({ "LaunchMaximized", "MCWindowMaximize" }, false);
@@ -1536,6 +1539,33 @@ bool Application::launch(BaseInstance* instance,
     if (m_updateRunning) {
         qDebug() << "Cannot launch instances while an update is running. Please try again when updates are completed.";
     } else if (instance->canLaunch()) {
+        if (instance->isRunning() && !m_settings->get("SuppressConcurrentLaunchWarning").toBool()) {
+            QWidget* parent = m_mainWindow;
+            {
+                QMutexLocker locker(&m_instanceExtrasMutex);
+                const auto iter = m_instanceExtras.find(instance->id());
+                if (iter != m_instanceExtras.end() && iter->second.window)
+                    parent = iter->second.window;
+            }
+
+            QMessageBox warning(parent);
+            warning.setWindowTitle(tr("Launch another Minecraft process?"));
+            warning.setIcon(QMessageBox::Warning);
+            warning.setText(tr("This instance is already running."));
+            warning.setInformativeText(
+                tr("Both Minecraft processes will use the same game folder and the same config, options, logs, and saves. "
+                   "Running them together can cause conflicting writes and data loss."));
+            auto* launchButton = warning.addButton(tr("Launch Anyway"), QMessageBox::AcceptRole);
+            warning.addButton(tr("Cancel"), QMessageBox::RejectRole);
+            QCheckBox dontShowAgain(tr("Don't show this warning again"), &warning);
+            warning.setCheckBox(&dontShowAgain);
+            warning.exec();
+            if (dontShowAgain.isChecked())
+                m_settings->set("SuppressConcurrentLaunchWarning", true);
+            if (warning.clickedButton() != launchButton)
+                return false;
+        }
+
         QMutexLocker locker(&m_instanceExtrasMutex);
         auto& extras = m_instanceExtras[instance->id()];
         auto window = extras.window;
@@ -1544,25 +1574,23 @@ bool Application::launch(BaseInstance* instance,
                 return false;
             }
         }
-        auto& controller = extras.controller;
-        controller.reset(new LaunchController());
-        controller->setInstance(instance);
-        controller->setLaunchMode(mode);
-        controller->setProfiler(profilers().value(instance->settings()->get("Profiler").toString(), nullptr).get());
-        controller->setTargetToJoin(targetToJoin);
-        controller->setAccountToUse(accountToUse);
-        controller->setOfflineName(offlineName);
+        auto controller = std::make_unique<LaunchController>();
+        auto* controllerPtr = controller.get();
+        controllerPtr->setInstance(instance);
+        controllerPtr->setLaunchMode(mode);
+        controllerPtr->setProfiler(profilers().value(instance->settings()->get("Profiler").toString(), nullptr).get());
+        controllerPtr->setTargetToJoin(targetToJoin);
+        controllerPtr->setAccountToUse(accountToUse);
+        controllerPtr->setOfflineName(offlineName);
         if (window) {
-            controller->setParentWidget(window);
+            controllerPtr->setParentWidget(window);
         } else if (m_mainWindow) {
-            controller->setParentWidget(m_mainWindow);
+            controllerPtr->setParentWidget(m_mainWindow);
         }
-        connect(controller.get(), &LaunchController::finished, this, &Application::controllerFinished);
+        connect(controllerPtr, &LaunchController::finished, this, &Application::controllerFinished);
+        extras.controllers.emplace_back(std::move(controller));
         addRunningInstance();
-        QMetaObject::invokeMethod(controller.get(), &Task::start, Qt::QueuedConnection);
-        return true;
-    } else if (instance->isRunning()) {
-        showInstanceWindow(instance, "console");
+        QMetaObject::invokeMethod(controllerPtr, &Task::start, Qt::QueuedConnection);
         return true;
     } else if (instance->canEdit()) {
         showInstanceWindow(instance);
@@ -1571,7 +1599,7 @@ bool Application::launch(BaseInstance* instance,
     return false;
 }
 
-bool Application::kill(BaseInstance* instance)
+bool Application::kill(BaseInstance* instance, LaunchTask* session)
 {
     if (!instance->isRunning()) {
         qWarning() << "Attempted to kill instance" << instance->id() << ", which isn't running.";
@@ -1579,13 +1607,24 @@ bool Application::kill(BaseInstance* instance)
     }
     QMutexLocker locker(&m_instanceExtrasMutex);
     auto& extras = m_instanceExtras[instance->id()];
-    // NOTE: copy of the shared pointer keeps it alive
-    auto& controller = extras.controller;
-    locker.unlock();
-    if (controller) {
-        return controller->abort();
+    if (!session) {
+        const auto sessions = instance->launchTasks();
+        if (sessions.size() != 1) {
+            locker.unlock();
+            showInstanceWindow(instance, "console");
+            return false;
+        }
+        session = sessions.first();
     }
-    return true;
+
+    auto controller = std::find_if(extras.controllers.begin(), extras.controllers.end(),
+                                   [session](const auto& candidate) { return candidate->launcher() == session; });
+    auto* controllerPtr = controller == extras.controllers.end() ? nullptr : controller->get();
+    locker.unlock();
+    if (controllerPtr) {
+        return controllerPtr->abort();
+    }
+    return false;
 }
 
 void Application::closeCurrentWindow()
@@ -1634,26 +1673,33 @@ void Application::controllerFinished()
     auto controller = qobject_cast<LaunchController*>(sender());
     if (!controller)
         return;
-    auto id = controller->id();
-
-    QMutexLocker locker(&m_instanceExtrasMutex);
-    auto& extras = m_instanceExtras.at(id);
-
     const bool wasSuccessful = controller->wasSuccessful();
-    // on success, do...
-    if (wasSuccessful && controller->instance()->settings()->get("AutoCloseConsole").toBool()) {
-        if (extras.window) {
-            QMetaObject::invokeMethod(extras.window, &QWidget::close, Qt::QueuedConnection);
-        }
-    }
-    extras.controller.reset();
-    subRunningInstance();
+    const auto id = controller->id();
+    auto* instance = controller->instance();
 
-    // quit when there are no more windows.
-    if (shouldExitNow()) {
-        m_status = wasSuccessful ? Succeeded : Failed;
-        exit(wasSuccessful ? 0 : 1);
-    }
+    QMetaObject::invokeMethod(
+        this,
+        [this, controller, instance, id, wasSuccessful] {
+            QMutexLocker locker(&m_instanceExtrasMutex);
+            auto& extras = m_instanceExtras.at(id);
+            const auto iter = std::find_if(extras.controllers.begin(), extras.controllers.end(),
+                                           [controller](const auto& candidate) { return candidate.get() == controller; });
+            if (iter == extras.controllers.end())
+                return;
+
+            extras.controllers.erase(iter);
+            subRunningInstance();
+            if (wasSuccessful && !instance->isRunning() && instance->settings()->get("AutoCloseConsole").toBool() && extras.window) {
+                QMetaObject::invokeMethod(extras.window, &QWidget::close, Qt::QueuedConnection);
+            }
+            locker.unlock();
+
+            if (shouldExitNow()) {
+                m_status = wasSuccessful ? Succeeded : Failed;
+                exit(wasSuccessful ? 0 : 1);
+            }
+        },
+        Qt::QueuedConnection);
 }
 
 void Application::ShowGlobalSettings(class QWidget* parent, QString open_page)
@@ -1741,8 +1787,8 @@ InstanceWindow* Application::showInstanceWindow(BaseInstance* instance, QString 
     if (!page.isEmpty()) {
         window->selectPage(page);
     }
-    if (extras.controller) {
-        extras.controller->setParentWidget(window);
+    for (const auto& controller : extras.controllers) {
+        controller->setParentWidget(window);
     }
     return window;
 }
@@ -1755,8 +1801,8 @@ void Application::on_windowClose()
         QMutexLocker locker(&m_instanceExtrasMutex);
         auto& extras = m_instanceExtras[instWindow->instanceId()];
         extras.window = nullptr;
-        if (extras.controller) {
-            extras.controller->setParentWidget(m_mainWindow);
+        for (const auto& controller : extras.controllers) {
+            controller->setParentWidget(m_mainWindow);
         }
     }
     auto mainWindow = qobject_cast<MainWindow*>(sender());
