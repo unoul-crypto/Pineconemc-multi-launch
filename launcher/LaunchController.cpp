@@ -307,6 +307,7 @@ void LaunchController::login()
             if (ok) {
                 m_session = std::make_shared<AuthSession>();
                 m_session->MakeDemo(name, MinecraftAccount::uuidFromUsername(name).toString(QUuid::Id128));
+                m_session->account_type = "Demo";
                 launchInstance();
                 return;
             }
@@ -319,6 +320,17 @@ void LaunchController::login()
     m_session = std::make_shared<AuthSession>();
     m_session->launchMode = m_actualLaunchMode;
     m_accountToUse->fillSession(m_session, m_instance->settings()->get("ElyPatchPreference").toInt());
+    switch (m_accountToUse->accountType()) {
+        case AccountType::MSA:
+            m_session->account_type = "Microsoft";
+            break;
+        case AccountType::Ely:
+            m_session->account_type = "Ely.by";
+            break;
+        case AccountType::Offline:
+            m_session->account_type = "Offline";
+            break;
+    }
 
     if (m_accountToUse->accountType() != AccountType::Offline) {
         if (m_actualLaunchMode == LaunchMode::Normal && !m_accountToUse->hasProfile()) {
@@ -342,6 +354,9 @@ void LaunchController::login()
             m_session->MakeOffline(name);
         }
     }
+
+    if (m_actualLaunchMode == LaunchMode::Offline)
+        m_session->account_type = "Offline";
 
     launchInstance();
 }

@@ -36,6 +36,8 @@
  */
 
 #pragma once
+#include <utility>
+
 #include <QObjectPtr.h>
 #include <minecraft/MinecraftInstance.h>
 #include <QProcess>
@@ -47,6 +49,7 @@
 class LaunchTask : public Task {
     Q_OBJECT
     friend class BaseInstance;
+
    protected:
     explicit LaunchTask(MinecraftInstance* instance);
     void init();
@@ -68,6 +71,13 @@ class LaunchTask : public Task {
 
     qint64 pid() { return m_pid; }
     quint64 sessionId() const { return m_sessionId; }
+    const QString& accountName() const { return m_accountName; }
+    const QString& accountType() const { return m_accountType; }
+    void setAccountInfo(QString name, QString type)
+    {
+        m_accountName = std::move(name);
+        m_accountType = std::move(type);
+    }
 
     /**
      * @brief prepare the process for launch (for multi-stage launch)
@@ -119,7 +129,7 @@ class LaunchTask : public Task {
     void setSessionId(quint64 sessionId) { m_sessionId = sessionId; }
 
    protected:
-    bool parseXmlLogs(QString const& line, MessageLevel level);
+    bool parseXmlLogs(const QString& line, MessageLevel level);
 
    protected: /* data */
     MinecraftInstance* m_instance;
@@ -130,6 +140,8 @@ class LaunchTask : public Task {
     State state = NotStarted;
     qint64 m_pid = -1;
     quint64 m_sessionId = 0;
+    QString m_accountName;
+    QString m_accountType;
     LogParser m_stdoutParser;
     LogParser m_stderrParser;
 };
