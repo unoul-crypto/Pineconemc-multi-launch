@@ -159,7 +159,7 @@ void InstanceWindow::on_instanceStatusChanged(BaseInstance::Status, BaseInstance
 void InstanceWindow::updateButtons()
 {
     m_launchButton->setEnabled(m_instance->canLaunch());
-    m_killButton->setEnabled(m_proc && m_instance->isRunning());
+    m_killButton->setEnabled(m_instance->isLaunchTaskActive(m_proc));
 
     QMenu* launchMenu = m_launchButton->menu();
     if (launchMenu)

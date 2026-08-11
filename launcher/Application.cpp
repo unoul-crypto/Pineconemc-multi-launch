@@ -83,13 +83,13 @@
 
 #include "ApplicationMessage.h"
 
-#include <iostream>
 #include <algorithm>
+#include <iostream>
 #include <mutex>
 
 #include <QAccessible>
-#include <QCommandLineParser>
 #include <QCheckBox>
+#include <QCommandLineParser>
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
@@ -1562,7 +1562,7 @@ bool Application::launch(BaseInstance* instance,
             warning.setInformativeText(
                 tr("Both Minecraft processes will use the same game folder and the same config, options, logs, and saves. "
                    "Running them together can cause conflicting writes and data loss."));
-            const auto activeSessions = instance->launchTasks();
+            const auto activeSessions = instance->activeLaunchTasks();
             auto* launchButton = warning.addButton(tr("Launch Anyway"), QMessageBox::AcceptRole);
             QPushButton* restartButton = nullptr;
             if (activeSessions.size() == 1)
@@ -1649,7 +1649,7 @@ bool Application::kill(BaseInstance* instance, LaunchTask* session)
     QMutexLocker locker(&m_instanceExtrasMutex);
     auto& extras = m_instanceExtras[instance->id()];
     if (!session) {
-        const auto sessions = instance->launchTasks();
+        const auto sessions = instance->activeLaunchTasks();
         if (sessions.size() != 1) {
             locker.unlock();
             showInstanceWindow(instance, "console");
