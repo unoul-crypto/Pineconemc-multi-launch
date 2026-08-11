@@ -2,10 +2,10 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-#include <tasks/Task.h>
 #include <BaseInstance.h>
 #include <launch/LaunchTask.h>
 #include <settings/INISettingsObject.h>
+#include <tasks/Task.h>
 
 class TestLaunchTask final : public LaunchTask {
    public:
@@ -111,6 +111,15 @@ class BaseInstanceTest : public QObject {
         QVERIFY(instance.totalTimePlayed() >= 1);
         QVERIFY(instance.totalTimePlayed() <= 2);
         QCOMPARE(instance.lastTimePlayed(), instance.totalTimePlayed());
+    }
+
+    void launchTaskStoresAccountLabel()
+    {
+        TestLaunchTask task;
+        task.setAccountInfo("Player", "Microsoft");
+
+        QCOMPARE(task.accountName(), QString("Player"));
+        QCOMPARE(task.accountType(), QString("Microsoft"));
     }
 };
 

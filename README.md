@@ -27,7 +27,7 @@ There are already quite a few forks out in the wild that add Ely.by support and/
 
 PineconeMC can run multiple independent Minecraft processes from the same instance at the same time. The **Launch** action remains available while that instance is running.
 
-- Each launch has its own lifecycle and selectable console log.
+- Each launch has its own lifecycle and selectable console log, labelled with the player name and account type.
 - The instance window can stop the currently selected launch session.
 - Play time is measured as wall-clock time while at least one Minecraft process is running, so parallel sessions do not multiply it.
 - Starting another process displays a warning because all sessions share the same game directory, configuration, saves, and log files. The warning can be disabled with **Don't show this warning again**.
