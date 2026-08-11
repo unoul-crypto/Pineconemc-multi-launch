@@ -318,19 +318,6 @@ void BaseInstance::launchSessionFinished(LaunchTask* task, bool crashed)
         setCrashed(m_launchIntervalCrashed);
         emit runningStatusChanged(false);
     }
-
-    const auto sessionId = task->sessionId();
-    QMetaObject::invokeMethod(
-        this,
-        [this, task, sessionId] {
-            const auto iter = std::find_if(m_launchProcesses.begin(), m_launchProcesses.end(),
-                                           [task](const auto& candidate) { return candidate.get() == task; });
-            if (iter == m_launchProcesses.end())
-                return;
-            emit launchTaskRemoved(sessionId);
-            m_launchProcesses.erase(iter);
-        },
-        Qt::QueuedConnection);
 }
 
 void BaseInstance::setMinecraftRunning(LaunchTask* task, bool running)
@@ -541,6 +528,22 @@ QList<LaunchTask*> BaseInstance::launchTasks() const
     return result;
 }
 
+QList<LaunchTask*> BaseInstance::activeLaunchTasks() const
+{
+    QList<LaunchTask*> result;
+    result.reserve(m_activeLaunchProcesses.size());
+    for (const auto& task : m_launchProcesses) {
+        if (m_activeLaunchProcesses.contains(task.get()))
+            result.append(task.get());
+    }
+    return result;
+}
+
+bool BaseInstance::isLaunchTaskActive(LaunchTask* task) const
+{
+    return task && m_activeLaunchProcesses.contains(task);
+}
+
 LaunchTask* BaseInstance::launchTask(quint64 sessionId) const
 {
     const auto iter = std::find_if(m_launchProcesses.begin(), m_launchProcesses.end(),
@@ -552,6 +555,14 @@ LaunchTask* BaseInstance::adoptLaunchTask(std::unique_ptr<LaunchTask> task)
 {
     if (!task)
         return nullptr;
+
+    // Keep completed sessions (and their logs) available until the next
+    // independent run group starts. Overlapping launches stay grouped.
+    if (!isRunning()) {
+        for (const auto& previous : m_launchProcesses)
+            emit launchTaskRemoved(previous->sessionId());
+        m_launchProcesses.clear();
+    }
 
     auto* result = task.get();
     result->setSessionId(m_nextLaunchSessionId++);

@@ -205,8 +205,10 @@ class BaseInstance : public QObject {
     /// returns a valid launcher (task container)
     virtual LaunchTask* createLaunchTask(AuthSessionPtr account, MinecraftTarget::Ptr targetToJoin) = 0;
 
-    /// Returns all active launch sessions, in creation order.
+    /// Returns launch sessions from the current run group, in creation order.
     QList<LaunchTask*> launchTasks() const;
+    QList<LaunchTask*> activeLaunchTasks() const;
+    bool isLaunchTaskActive(LaunchTask* task) const;
     LaunchTask* launchTask(quint64 sessionId) const;
     LaunchTask* adoptLaunchTask(std::unique_ptr<LaunchTask> task);
     void launchSessionStarted(LaunchTask* task);
