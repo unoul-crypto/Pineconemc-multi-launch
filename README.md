@@ -57,6 +57,18 @@ Feel free to create a GitHub issue if you find a bug or want to suggest a new fe
 
 If you want to build PineconeMC yourself, check the [build instructions](https://prismlauncher.org/wiki/development/build-instructions).
 
+For a Windows MinGW release of this fork, use a checkout path without spaces, Qt 6 including **Network Authorization**, CMake, Ninja, a matching MinGW compiler, vcpkg, and JDK 8 or 17. Put the Qt, MinGW, and JDK binaries on `PATH`, and set `QT_ROOT` and `VCPKG_ROOT` to their installation directories. Supply the vcpkg toolchain on the **first** configure so static libarchive dependencies are linked correctly:
+
+```powershell
+cmake --preset windows_mingw "-DCMAKE_PREFIX_PATH=$env:QT_ROOT" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-mingw-static-release -DBUILD_TESTING=ON -DLauncher_BUILD_PLATFORM=multi-launch -DLauncher_BUILD_ARTIFACT=Windows-MinGW-w64-Qt6
+cmake --build --preset windows_mingw --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+cmake --install build --config Release
+cmake --install build --config Release --component portable
+```
+
+The `install` directory contains the portable launcher and its runtime dependencies. The `BaseInstance` tests cover parallel session state, UUID preservation, crash state, play time, account labels, native directories, and retained logs.
+
 ## The following comes from the original Prism Launcher README
 
 ### Forking/Redistributing/Custom builds policy
