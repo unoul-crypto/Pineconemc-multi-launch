@@ -464,6 +464,32 @@ void create_link::make_link_list(const QString& offset)
     }
 }
 
+void createSymbolicLink(const QString& source, const QString& destination, bool directory, std::error_code& error)
+{
+#ifdef Q_OS_WIN
+    const auto nativeSource = QDir::toNativeSeparators(source).toStdWString();
+    const auto nativeDestination = QDir::toNativeSeparators(destination).toStdWString();
+    const DWORD flags = directory ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
+    // This flag is available on modern Windows even when building with an older SDK.
+    constexpr DWORD allowUnprivilegedCreate = 0x2;
+    error.clear();
+    if (CreateSymbolicLinkW(nativeDestination.c_str(), nativeSource.c_str(), flags | allowUnprivilegedCreate))
+        return;
+    auto nativeError = GetLastError();
+    if (nativeError == ERROR_INVALID_PARAMETER) {
+        if (CreateSymbolicLinkW(nativeDestination.c_str(), nativeSource.c_str(), flags))
+            return;
+        nativeError = GetLastError();
+    }
+    error.assign(static_cast<int>(nativeError), std::system_category());
+#else
+    if (directory)
+        fs::create_directory_symlink(StringUtils::toStdString(source), StringUtils::toStdString(destination), error);
+    else
+        fs::create_symlink(StringUtils::toStdString(source), StringUtils::toStdString(destination), error);
+#endif
+}
+
 bool create_link::make_links()
 {
     for (auto link : m_links_to_make) {
@@ -477,14 +503,10 @@ bool create_link::make_links()
             if (m_debug)
                 qDebug() << "making hard link:" << src_path << "to" << dst_path;
             fs::create_hard_link(src_path_std, dst_path_std, m_os_err);
-        } else if (fs::is_directory(src_path_std)) {
-            if (m_debug)
-                qDebug() << "making directory_symlink:" << src_path << "to" << dst_path;
-            fs::create_directory_symlink(src_path_std, dst_path_std, m_os_err);
         } else {
             if (m_debug)
                 qDebug() << "making symlink:" << src_path << "to" << dst_path;
-            fs::create_symlink(src_path_std, dst_path_std, m_os_err);
+            createSymbolicLink(src_path, dst_path, QFileInfo(src_path).isDir(), m_os_err);
         }
 
         if (m_os_err) {

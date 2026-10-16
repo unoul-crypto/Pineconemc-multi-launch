@@ -377,8 +377,9 @@ class FileSystemTest : public QObject {
                 QFileInfo entry_orig_info(QDir(folder).filePath(entry));
                 if (!entry_lnk_info.isDir()) {
                     qDebug() << "hard link equivalency?" << entry_lnk_info.absoluteFilePath() << "vs" << entry_orig_info.absoluteFilePath();
-                    QVERIFY(fs::equivalent(fs::path(StringUtils::toStdString(entry_lnk_info.absoluteFilePath())),
-                                           fs::path(StringUtils::toStdString(entry_orig_info.absoluteFilePath()))));
+                    // Resolve mapped drive aliases before comparing file identities on Windows.
+                    QVERIFY(fs::equivalent(fs::path(StringUtils::toStdString(entry_lnk_info.canonicalFilePath())),
+                                           fs::path(StringUtils::toStdString(entry_orig_info.canonicalFilePath()))));
                 }
             }
 

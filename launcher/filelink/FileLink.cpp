@@ -127,12 +127,9 @@ void FileLinkApp::runLink()
         if (m_useHardLinks) {
             qDebug() << "making hard link:" << src_path << "to" << dst_path;
             fs::create_hard_link(StringUtils::toStdString(src_path), StringUtils::toStdString(dst_path), os_err);
-        } else if (fs::is_directory(StringUtils::toStdString(src_path))) {
-            qDebug() << "making directory_symlink:" << src_path << "to" << dst_path;
-            fs::create_directory_symlink(StringUtils::toStdString(src_path), StringUtils::toStdString(dst_path), os_err);
         } else {
             qDebug() << "making symlink:" << src_path << "to" << dst_path;
-            fs::create_symlink(StringUtils::toStdString(src_path), StringUtils::toStdString(dst_path), os_err);
+            FS::createSymbolicLink(src_path, dst_path, QFileInfo(src_path).isDir(), os_err);
         }
 
         if (os_err) {

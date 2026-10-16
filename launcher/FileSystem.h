@@ -51,6 +51,9 @@
 
 namespace FS {
 
+/** Create a real symbolic link, including on MinGW runtimes without std::filesystem symlink support. */
+void createSymbolicLink(const QString& source, const QString& destination, bool directory, std::error_code& error);
+
 class FileSystemException : public ::Exception {
    public:
     FileSystemException(const QString& message) : Exception(message) {}
