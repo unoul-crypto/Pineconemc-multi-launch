@@ -20,6 +20,8 @@ There are already quite a few forks out in the wild that add Ely.by support and/
 
 ## Multiple launches of one instance
 
+This independent fork is based on PineconeMC **11.1.1** and includes all five multi-launch changes from `feature/multi-launch-sessions`. It is not endorsed by PineconeMC, Prism Launcher, or Ely.by.
+
 PineconeMC can run multiple independent Minecraft processes from the same instance at the same time. The **Launch** action remains available while that instance is running.
 
 - Each launch has its own lifecycle and selectable console log, labelled with the player name and account type. Completed logs remain available until the next independent launch begins.
@@ -31,8 +33,9 @@ Running multiple processes against one game directory can cause conflicting writ
 
 ## Installation
 
-- All downloads and instructions for PineconeMC can be found on the [Releases](https://github.com/ElyPrismLauncher/Launcher/releases/latest) page.
-- Last build status can be found in the [GitHub Actions](https://github.com/ElyPrismLauncher/Launcher/actions) tab.
+- Downloads for this multi-launch fork can be found on its [Releases](https://github.com/unoul-crypto/Pineconemc-multi-launch/releases/latest) page.
+- Extract the Windows archive into the existing launcher installation to keep using its accounts and instances, or into a new directory for a fresh installation. Close the launcher before replacing files.
+- Last build status can be found in the [GitHub Actions](https://github.com/unoul-crypto/Pineconemc-multi-launch/actions) tab.
 
 ### Development Builds
 

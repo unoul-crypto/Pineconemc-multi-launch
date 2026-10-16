@@ -101,6 +101,58 @@ class BaseInstanceTest : public QObject {
         QCOMPARE(runningChanges.at(1).at(0).toBool(), false);
     }
 
+    void crashStateIsAggregatedAndResetsForNextLaunch()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        auto global = createGlobalSettings(dir.filePath("global.cfg"));
+        auto local = std::make_unique<INISettingsObject>(dir.filePath("instance.cfg"));
+        TestInstance instance(global.get(), std::move(local), dir.path());
+        TestLaunchTask first;
+        TestLaunchTask second;
+
+        instance.launchSessionStarted(&first);
+        instance.launchSessionStarted(&first);
+        instance.launchSessionStarted(&second);
+        instance.launchSessionFinished(&first, true);
+        instance.launchSessionFinished(&first, false);
+        QVERIFY(instance.isRunning());
+        instance.launchSessionFinished(&second, false);
+        QVERIFY(!instance.isRunning());
+        QVERIFY(instance.hasCrashed());
+
+        instance.launchSessionStarted(&first);
+        QVERIFY(!instance.hasCrashed());
+        instance.launchSessionFinished(&first, false);
+        QVERIFY(!instance.hasCrashed());
+    }
+
+    void instanceUuidSurvivesParallelLaunches()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        auto global = createGlobalSettings(dir.filePath("global.cfg"));
+        auto local = std::make_unique<INISettingsObject>(dir.filePath("instance.cfg"));
+        local->registerSetting("uuid", QString());
+        const auto savedUuid = QStringLiteral("0123456789abcdef0123456789abcdef");
+        local->set("uuid", savedUuid);
+        TestInstance instance(global.get(), std::move(local), dir.path());
+        TestLaunchTask first;
+        TestLaunchTask second;
+
+        QCOMPARE(instance.uuid(), savedUuid);
+        instance.launchSessionStarted(&first);
+        instance.launchSessionStarted(&second);
+        instance.launchSessionFinished(&first, false);
+        instance.launchSessionFinished(&second, false);
+        QCOMPARE(instance.uuid(), savedUuid);
+        QCOMPARE(instance.settings()->get("uuid").toString(), savedUuid);
+
+        instance.regenerateUuid();
+        QVERIFY(instance.uuid() != savedUuid);
+        QCOMPARE(instance.settings()->get("uuid").toString(), instance.uuid());
+    }
+
     void parallelMinecraftProcessesCountWallClockTimeOnce()
     {
         QTemporaryDir dir;
