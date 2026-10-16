@@ -43,8 +43,7 @@ Please understand that these builds are not intended for most users. There may b
 
 There are development builds available through:
 
-- [GitHub Actions](https://github.com/ElyPrismLauncher/Launcher/actions) (includes builds from pull requests opened by contributors)
-- [nightly.link](https://nightly.link/ElyPrismLauncher/Launcher/workflows/build/develop) (this will always point only to the latest version of develop)
+- [GitHub Actions](https://github.com/unoul-crypto/Pineconemc-multi-launch/actions) (select the multi-launch branch when building this fork)
 
 These have debug information in the binaries, so their file sizes are relatively larger.
 

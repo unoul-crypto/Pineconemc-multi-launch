@@ -12,7 +12,7 @@ set(Launcher_CommonName "ElyPrismLauncher")
 set(Launcher_DisplayName "PineconeMC")
 set(Launcher_AppID "io.github.elyprismlauncher.ElyPrismLauncher")
 set(Launcher_Domain "pineconemc.ru")
-set(Launcher_Git "https://github.com/ElyPrismLauncher/Launcher")
+set(Launcher_Git "https://github.com/unoul-crypto/Pineconemc-multi-launch")
 
 set(Launcher_Name "${Launcher_CommonName}" PARENT_SCOPE)
 set(Launcher_DisplayName "${Launcher_DisplayName}" PARENT_SCOPE)

@@ -1432,7 +1432,8 @@ endif()
 add_executable(${Launcher_Name} MACOSX_BUNDLE WIN32 main.cpp ${LAUNCHER_RCS})
 
 if(${Launcher_USE_PCH})
-    target_precompile_headers(${Launcher_Name} REUSE_FROM Launcher_logic)
+    # Qt adds executable-only definitions (such as QT_NEEDS_QMAIN), so library PCH flags do not match.
+    target_precompile_headers(${Launcher_Name} PRIVATE ${PRECOMPILED_HEADERS})
 endif()
 
 target_link_libraries(${Launcher_Name} Launcher_logic)
@@ -1491,7 +1492,7 @@ if(Launcher_BUILD_UPDATER)
     target_link_libraries("${Launcher_Name}_updater" prism_updater_logic)
 
     if(${Launcher_USE_PCH})
-        target_precompile_headers("${Launcher_Name}_updater" REUSE_FROM prism_updater_logic)
+        target_precompile_headers("${Launcher_Name}_updater" PRIVATE ${PRECOMPILED_HEADERS})
     endif()
 
     if(DEFINED Launcher_APP_BINARY_NAME)
@@ -1537,7 +1538,7 @@ if(WIN32 OR (DEFINED Launcher_BUILD_FILELINKER AND Launcher_BUILD_FILELINKER))
     target_sources("${Launcher_Name}_filelink" PRIVATE filelink/filelink.exe.manifest)
 
     if(${Launcher_USE_PCH})
-        target_precompile_headers("${Launcher_Name}_filelink" REUSE_FROM filelink_logic)
+        target_precompile_headers("${Launcher_Name}_filelink" PRIVATE ${PRECOMPILED_HEADERS})
     endif()
 
     # HACK: Fix manifest issues with Ninja in release mode (and only release mode) and MSVC
