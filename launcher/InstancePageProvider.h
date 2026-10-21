@@ -2,6 +2,8 @@
 #include <FileSystem.h>
 #include <ui/pages/instance/DataPackPage.h>
 #include "minecraft/MinecraftInstance.h"
+#include "server/ServerInstance.h"
+#include "ui/pages/instance/ServerSettingsPage.h"
 #include "ui/pages/BasePage.h"
 #include "ui/pages/BasePageProvider.h"
 #include "ui/pages/instance/InstanceSettingsPage.h"
@@ -28,7 +30,14 @@ class InstancePageProvider : protected QObject, public BasePageProvider {
     {
         QList<BasePage*> values;
         values.append(new LogPage(inst));
+        if (auto* server = dynamic_cast<ServerInstance*>(inst)) {
+            values.append(new ServerSettingsPage(server));
+            values.append(new NotesPage(server));
+            values.append(new OtherLogsPage("logs", tr("Other Logs"), "Other-Logs", inst));
+            return values;
+        }
         MinecraftInstance* onesix = dynamic_cast<MinecraftInstance*>(inst);
+        if (!onesix) return values;
         values.append(new VersionPage(onesix));
         values.append(ManagedPackPage::createPage(onesix));
         auto modsPage = new ModFolderPage(onesix, onesix->loaderModList());

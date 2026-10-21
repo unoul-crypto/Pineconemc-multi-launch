@@ -877,7 +877,7 @@ void MainWindow::instanceFromInstanceTask(InstanceTask* rawTask)
 
 void MainWindow::on_actionCopyInstance_triggered()
 {
-    if (!m_selectedInstance)
+    if (!m_selectedInstance || m_selectedInstance->isServer())
         return;
 
     CopyInstanceDialog copyInstDlg(m_selectedInstance, this);
@@ -1159,6 +1159,10 @@ void MainWindow::processURLs(QList<QUrl> urls)
 
         auto inst = APPLICATION->instances()->getInstanceById(dlg.selectedInstanceKey);
         auto minecraftInst = dynamic_cast<MinecraftInstance*>(inst);
+        if (!minecraftInst) {
+            QMessageBox::information(this, tr("Server instance"), tr("Open the server folder to add server files. Client resource installation is not supported for server instances."));
+            continue;
+        }
 
         switch (type) {
             case ModPlatform::ResourceType::ResourcePack:
@@ -1630,7 +1634,7 @@ void MainWindow::on_actionKillInstance_triggered()
 
 void MainWindow::on_actionCreateInstanceShortcut_triggered()
 {
-    if (!m_selectedInstance)
+    if (!m_selectedInstance || m_selectedInstance->isServer())
         return;
 
     CreateShortcutDialog shortcutDlg(m_selectedInstance, this);
@@ -1772,13 +1776,16 @@ void MainWindow::updateStatusCenter()
 // Actions that also require other conditions (e.g. a running instance) won't be changed.
 void MainWindow::setInstanceActionsEnabled(bool enabled)
 {
+    const bool server = m_selectedInstance && m_selectedInstance->isServer();
+    ui->actionEditInstance->setText(server ? tr("Server / Console") : tr("&Edit..."));
+    ui->actionEditInstance->setToolTip(server ? tr("Open server settings and console.") : tr("Change the instance settings, mods and versions."));
     ui->actionEditInstance->setEnabled(enabled);
     ui->actionChangeInstGroup->setEnabled(enabled);
     ui->actionViewSelectedInstFolder->setEnabled(enabled);
     ui->actionExportInstance->setEnabled(enabled);
     ui->actionDeleteInstance->setEnabled(enabled);
-    ui->actionCopyInstance->setEnabled(enabled);
-    ui->actionCreateInstanceShortcut->setEnabled(enabled);
+    ui->actionCopyInstance->setEnabled(enabled && !server);
+    ui->actionCreateInstanceShortcut->setEnabled(enabled && !server);
 }
 
 void MainWindow::refreshCurrentInstance()

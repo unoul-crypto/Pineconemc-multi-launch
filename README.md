@@ -31,6 +31,17 @@ PineconeMC can run multiple independent Minecraft processes from the same instan
 
 Running multiple processes against one game directory can cause conflicting writes or data loss. Use this feature only when the selected Minecraft versions and mods can safely share those files.
 
+## Server instances
+
+Choose **Add Instance → Server (JAR)** to create a server from your own runnable JAR. Select its Java executable and minimum/maximum memory. The JAR is copied into the instance's `server` directory; worlds, plugins, mods, configuration, and logs stay in that directory. Installer JARs and servers requiring a separate startup script are not supported in this first version.
+
+- Read the Minecraft EULA and select its checkbox before the first launch. Server launches do not require a launcher account.
+- Use the console input to send commands, with or without a leading `/`. **Stop server** sends `stop` and waits for the server to save and exit. **Force kill** terminates it immediately.
+- **Hide console** leaves the server running. Select the instance and use **Server / Console** to reopen it; its log and command input remain available.
+- While the server is stopped, **Server settings** can change Java, memory, the JAR, startup arguments, MOTD, port, player limit, game mode, difficulty, view distance, spawn protection, PvP, whitelist, and account verification.
+- Unknown `server.properties` entries and comments are preserved. Before changing an existing properties file, the launcher creates a timestamped backup beside it. Changes take effect on the next start.
+- Each server instance can run only once, including across launcher processes using the same server directory.
+
 ## Installation
 
 Launch preparation uses non-modal progress windows so that other sessions and launcher windows remain interactive.

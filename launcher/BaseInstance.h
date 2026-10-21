@@ -127,6 +127,7 @@ class BaseInstance : public QObject {
 
     /// get the type of this instance
     QString instanceType() const;
+    virtual bool isServer() const { return false; }
 
     /// Path to the instance's root directory.
     QString instanceRoot() const;

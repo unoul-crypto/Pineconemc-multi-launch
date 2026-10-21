@@ -51,21 +51,25 @@ class LaunchTask : public Task {
     friend class BaseInstance;
 
    protected:
-    explicit LaunchTask(MinecraftInstance* instance);
+    explicit LaunchTask(BaseInstance* instance);
     void init();
 
    public:
     enum State { NotStarted, Running, Waiting, Failed, Aborted, Finished };
 
    public: /* methods */
-    static std::unique_ptr<LaunchTask> create(MinecraftInstance* inst);
+    static std::unique_ptr<LaunchTask> create(BaseInstance* inst);
     virtual ~LaunchTask() = default;
 
     void appendStep(shared_qobject_ptr<LaunchStep> step);
     void prependStep(shared_qobject_ptr<LaunchStep> step);
     void setCensorFilter(QMap<QString, QString> filter);
 
-    MinecraftInstance* instance() { return m_instance; }
+    // Client launch steps keep their typed accessor; shared process/log code uses BaseInstance.
+    MinecraftInstance* instance();
+    BaseInstance* baseInstance() const { return m_instance; }
+    virtual bool acceptsCommands() const { return false; }
+    virtual bool sendCommand(const QString&) { return false; }
 
     void setPid(qint64 pid) { m_pid = pid; }
 
@@ -116,6 +120,7 @@ class LaunchTask : public Task {
     void requestProgress(Task* task);
 
     void requestLogging();
+    void commandAvailabilityChanged();
 
    public slots:
     void onLogLines(const QStringList& lines, MessageLevel defaultLevel = MessageLevel::Launcher);
@@ -132,7 +137,7 @@ class LaunchTask : public Task {
     bool parseXmlLogs(const QString& line, MessageLevel level);
 
    protected: /* data */
-    MinecraftInstance* m_instance;
+    BaseInstance* m_instance;
     shared_qobject_ptr<LogModel> m_logModel;
     QList<shared_qobject_ptr<LaunchStep>> m_steps;
     QMap<QString, QString> m_censorFilter;

@@ -1,5 +1,9 @@
 project(tests)
 
+ecm_add_test(ServerProperties_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test TEST_NAME ServerProperties)
+ecm_add_test(ServerInstance_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test TEST_NAME ServerInstance)
+ecm_add_test(ServerUI_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test TEST_NAME ServerUI)
+
 if(Launcher_BUILD_UPDATER)
     ecm_add_test(ReleasePolicy_test.cpp LINK_LIBRARIES prism_updater_logic Qt${QT_VERSION_MAJOR}::Test
         TEST_NAME ReleasePolicy)

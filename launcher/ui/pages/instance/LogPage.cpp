@@ -43,6 +43,9 @@
 #include <QIdentityProxyModel>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QPushButton>
 
 #include "launch/LaunchTask.h"
 #include "settings/Setting.h"
@@ -132,6 +135,23 @@ LogPage::LogPage(BaseInstance* instance, QWidget* parent) : QWidget(parent), ui(
 {
     ui->setupUi(this);
 
+    if (m_instance->isServer()) {
+        auto* row = new QHBoxLayout();
+        m_command = new QLineEdit(this);
+        m_command->setObjectName("serverCommandInput");
+        m_command->setPlaceholderText(tr("Server command, for example help or list"));
+        m_sendCommand = new QPushButton(tr("Send"), this);
+        m_sendCommand->setObjectName("sendServerCommand");
+        row->addWidget(m_command, 1); row->addWidget(m_sendCommand);
+        ui->gridLayout->addLayout(row, ui->gridLayout->rowCount(), 0, 1, 5);
+        auto send = [this] {
+            if (m_process && m_process->sendCommand(m_command->text())) m_command->clear();
+        };
+        connect(m_sendCommand, &QPushButton::clicked, this, send);
+        connect(m_command, &QLineEdit::returnPressed, this, send);
+        updateServerCommandState();
+    }
+
     m_proxy = new LogFormatProxyModel(this);
 
     // set up fonts in the log proxy
@@ -212,9 +232,11 @@ void LogPage::UIToModelState()
 
 void LogPage::setInstanceLaunchTaskChanged(LaunchTask* proc, bool initial)
 {
+    if (m_process) disconnect(m_process, &LaunchTask::commandAvailabilityChanged, this, &LogPage::updateServerCommandState);
     m_process = proc;
     if (m_process) {
         m_model = proc->getLogModel();
+        connect(proc, &LaunchTask::commandAvailabilityChanged, this, &LogPage::updateServerCommandState);
         m_proxy->setSourceModel(m_model.get());
         if (initial) {
             modelStateToUI();
@@ -225,6 +247,14 @@ void LogPage::setInstanceLaunchTaskChanged(LaunchTask* proc, bool initial)
         m_proxy->setSourceModel(nullptr);
         m_model.reset();
     }
+    updateServerCommandState();
+}
+
+void LogPage::updateServerCommandState()
+{
+    if (!m_command) return;
+    const bool enabled = m_process && m_process->acceptsCommands();
+    m_command->setEnabled(enabled); m_sendCommand->setEnabled(enabled);
 }
 
 int LogPage::sessionIndex(quint64 sessionId) const
@@ -238,7 +268,7 @@ int LogPage::sessionIndex(quint64 sessionId) const
 
 QString LogPage::launchTaskDisplayName(const LaunchTask* task) const
 {
-    auto name = tr("Minecraft #%1").arg(task->sessionId());
+    auto name = m_instance->isServer() ? tr("Server #%1").arg(task->sessionId()) : tr("Minecraft #%1").arg(task->sessionId());
     if (!task->accountName().isEmpty())
         name += QString(" %1").arg(task->accountName());
     if (!task->accountType().isEmpty())

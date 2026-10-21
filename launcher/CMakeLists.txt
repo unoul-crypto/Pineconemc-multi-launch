@@ -21,6 +21,20 @@ set(CORE_SOURCES
     BaseVersion.h
     BaseInstance.h
     BaseInstance.cpp
+    server/PropertiesFile.h
+    server/PropertiesFile.cpp
+    server/ServerInstance.h
+    server/ServerInstance.cpp
+    server/ServerLaunchTask.h
+    server/ServerLaunchTask.cpp
+    server/ServerCreationTask.h
+    server/ServerCreationTask.cpp
+    ui/widgets/ServerOptionsWidget.h
+    ui/widgets/ServerOptionsWidget.cpp
+    ui/pages/modplatform/ServerCreationPage.h
+    ui/pages/modplatform/ServerCreationPage.cpp
+    ui/pages/instance/ServerSettingsPage.h
+    ui/pages/instance/ServerSettingsPage.cpp
     InstanceDirUpdate.h
     InstanceDirUpdate.cpp
     NullInstance.h

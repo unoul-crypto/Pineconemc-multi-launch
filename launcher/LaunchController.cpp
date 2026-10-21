@@ -81,7 +81,11 @@ void LaunchController::executeTask()
         return;
     }
 
-    login();
+    if (m_instance->isServer()) {
+        launchInstance();
+    } else {
+        login();
+    }
 }
 
 void LaunchController::decideAccount()
@@ -395,7 +399,7 @@ bool LaunchController::reauthenticateAccount(const MinecraftAccountPtr& account,
 void LaunchController::launchInstance()
 {
     Q_ASSERT(m_instance != nullptr);
-    Q_ASSERT(m_session.get() != nullptr);
+    Q_ASSERT(m_instance->isServer() || m_session.get() != nullptr);
 
     if (!m_instance->reloadSettings()) {
         QMessageBox::critical(m_parentWidget, tr("Error!"), tr("Couldn't load the instance profile."));
@@ -422,7 +426,9 @@ void LaunchController::launchInstance()
 
     // Prepend Online and Auth Status
     QString online_mode;
-    if (m_actualLaunchMode == LaunchMode::Normal) {
+    if (m_instance->isServer()) {
+        online_mode = "server";
+    } else if (m_actualLaunchMode == LaunchMode::Normal) {
         online_mode = "online";
 
         // Prepend Server Status
@@ -527,7 +533,8 @@ bool LaunchController::abort()
     if (!m_launcher->canAbort()) {
         return false;
     }
-    auto response = CustomMessageBox::selectable(m_parentWidget, tr("Kill Minecraft?"),
+    auto response = CustomMessageBox::selectable(m_parentWidget, m_instance->isServer() ? tr("Force kill server?") : tr("Kill Minecraft?"),
+                                                 m_instance->isServer() ? tr("Force killing may lose unsaved world changes. Use Stop in the server console for a normal shutdown.") :
                                                  tr("This can cause the instance to get corrupted and should only be used if Minecraft "
                                                     "is frozen for some reason"),
                                                  QMessageBox::Question, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)

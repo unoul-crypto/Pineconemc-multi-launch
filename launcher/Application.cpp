@@ -1614,7 +1614,8 @@ bool Application::launch(BaseInstance* instance,
         auto* controllerPtr = controller.get();
         controllerPtr->setInstance(instance);
         controllerPtr->setLaunchMode(mode);
-        controllerPtr->setProfiler(profilers().value(instance->settings()->get("Profiler").toString(), nullptr).get());
+        if (!instance->isServer())
+            controllerPtr->setProfiler(profilers().value(instance->settings()->get("Profiler").toString(), nullptr).get());
         controllerPtr->setTargetToJoin(targetToJoin);
         controllerPtr->setAccountToUse(accountToUse);
         controllerPtr->setOfflineName(offlineName);

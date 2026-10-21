@@ -51,12 +51,14 @@ void LaunchTask::init()
     m_instance->launchSessionStarted(this);
 }
 
-std::unique_ptr<LaunchTask> LaunchTask::create(MinecraftInstance* inst)
+std::unique_ptr<LaunchTask> LaunchTask::create(BaseInstance* inst)
 {
     return std::unique_ptr<LaunchTask>(new LaunchTask(inst));
 }
 
-LaunchTask::LaunchTask(MinecraftInstance* instance) : m_instance(instance) {}
+LaunchTask::LaunchTask(BaseInstance* instance) : m_instance(instance) {}
+
+MinecraftInstance* LaunchTask::instance() { return dynamic_cast<MinecraftInstance*>(m_instance); }
 
 void LaunchTask::appendStep(shared_qobject_ptr<LaunchStep> step)
 {

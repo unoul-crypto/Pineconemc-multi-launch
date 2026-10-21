@@ -56,6 +56,7 @@
 #include "NullInstance.h"
 #include "WatchLock.h"
 #include "minecraft/MinecraftInstance.h"
+#include "server/ServerInstance.h"
 #include "settings/INISettingsObject.h"
 
 #ifdef Q_OS_WIN32
@@ -673,7 +674,9 @@ std::unique_ptr<BaseInstance> InstanceList::loadInstance(const InstanceId& id)
 
     // NOTE: Some launcher versions didn't save the InstanceType properly. We will just bank on the probability that this is probably a
     // OneSix instance
-    if (inst_type == "OneSix" || inst_type.isEmpty()) {
+    if (inst_type == "Server") {
+        inst.reset(new ServerInstance(m_globalSettings, std::move(instanceSettings), instanceRoot));
+    } else if (inst_type == "OneSix" || inst_type.isEmpty()) {
         inst.reset(new MinecraftInstance(m_globalSettings, std::move(instanceSettings), instanceRoot));
     } else {
         inst.reset(new NullInstance(m_globalSettings, std::move(instanceSettings), instanceRoot));

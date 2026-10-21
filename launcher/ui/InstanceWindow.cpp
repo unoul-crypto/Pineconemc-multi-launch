@@ -94,8 +94,15 @@ InstanceWindow::InstanceWindow(BaseInstance* instance, QWidget* parent) : QMainW
         horizontalLayout->addWidget(m_launchButton);
         connect(m_launchButton, &QPushButton::clicked, this, [this] { APPLICATION->launch(m_instance); });
 
+        if (m_instance->isServer()) {
+            m_stopButton = new QPushButton(tr("Stop"), this);
+            m_stopButton->setObjectName("stopServerButton");
+            horizontalLayout->addWidget(m_stopButton);
+            connect(m_stopButton, &QPushButton::clicked, this, [this] { if (m_proc) m_proc->sendCommand("stop"); });
+        }
+
         m_killButton = new QPushButton(this);
-        m_killButton->setText(tr("&Kill"));
+        m_killButton->setText(m_instance->isServer() ? tr("Force kill") : tr("&Kill"));
         m_killButton->setToolTip(tr("Kill the running instance"));
         m_killButton->setShortcut(QKeySequence(tr("Ctrl+K")));
         horizontalLayout->addWidget(m_killButton);
@@ -104,7 +111,7 @@ InstanceWindow::InstanceWindow(BaseInstance* instance, QWidget* parent) : QMainW
         updateButtons();
 
         m_closeButton = new QPushButton(this);
-        m_closeButton->setText(tr("Close"));
+        m_closeButton->setText(m_instance->isServer() ? tr("Hide console") : tr("Close"));
         horizontalLayout->addWidget(m_closeButton);
         connect(m_closeButton, &QPushButton::clicked, this, &QMainWindow::close);
 
@@ -125,6 +132,8 @@ InstanceWindow::InstanceWindow(BaseInstance* instance, QWidget* parent) : QMainW
     // set up instance and launch process recognition
     {
         const auto launchTasks = m_instance->launchTasks();
+        for (auto* task : launchTasks)
+            connect(task, &LaunchTask::commandAvailabilityChanged, this, &InstanceWindow::updateButtons);
         if (!launchTasks.isEmpty())
             m_proc = launchTasks.last();
         connect(m_instance, &BaseInstance::launchTaskAdded, this, &InstanceWindow::instanceLaunchTaskAdded);
@@ -133,6 +142,7 @@ InstanceWindow::InstanceWindow(BaseInstance* instance, QWidget* parent) : QMainW
         auto* logPage = dynamic_cast<LogPage*>(m_container->getPage("console"));
         if (logPage)
             connect(logPage, &LogPage::selectedLaunchTaskChanged, this, &InstanceWindow::selectedLaunchTaskChanged);
+        updateButtons();
     }
 
     // set up instance destruction detection
@@ -142,7 +152,8 @@ InstanceWindow::InstanceWindow(BaseInstance* instance, QWidget* parent) : QMainW
 
     // add ourself as the modpack page's instance window
     {
-        static_cast<ManagedPackPage*>(m_container->getPage("managed_pack"))->setInstanceWindow(this);
+        if (auto* page = dynamic_cast<ManagedPackPage*>(m_container->getPage("managed_pack")))
+            page->setInstanceWindow(this);
     }
 
     show();
@@ -160,6 +171,7 @@ void InstanceWindow::updateButtons()
 {
     m_launchButton->setEnabled(m_instance->canLaunch());
     m_killButton->setEnabled(m_instance->isLaunchTaskActive(m_proc));
+    if (m_stopButton) m_stopButton->setEnabled(m_proc && m_proc->acceptsCommands());
 
     QMenu* launchMenu = m_launchButton->menu();
     if (launchMenu)
@@ -173,6 +185,7 @@ void InstanceWindow::updateButtons()
 void InstanceWindow::instanceLaunchTaskAdded(LaunchTask* proc)
 {
     m_proc = proc;
+    connect(proc, &LaunchTask::commandAvailabilityChanged, this, &InstanceWindow::updateButtons);
     updateButtons();
     selectPage("console");
 }
