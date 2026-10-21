@@ -1,5 +1,10 @@
 project(tests)
 
+if(Launcher_BUILD_UPDATER)
+    ecm_add_test(ReleasePolicy_test.cpp LINK_LIBRARIES prism_updater_logic Qt${QT_VERSION_MAJOR}::Test
+        TEST_NAME ReleasePolicy)
+endif()
+
 ecm_add_test(FileSystem_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test
     TEST_NAME FileSystem)
 

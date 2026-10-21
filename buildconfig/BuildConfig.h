@@ -62,6 +62,8 @@ class Config {
     int VERSION_MINOR;
     /// The patch version number.
     int VERSION_PATCH;
+    /// Revision of this fork, ordered after the upstream version by the updater.
+    int MULTI_LAUNCH_REVISION;
 
     /**
      * The version channel

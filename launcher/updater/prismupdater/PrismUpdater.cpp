@@ -22,6 +22,7 @@
 
 #include "PrismUpdater.h"
 #include "BuildConfig.h"
+#include "ReleasePolicy.h"
 #include "ui/dialogs/ProgressDialog.h"
 
 #include <cstdlib>
@@ -321,12 +322,17 @@ PrismUpdaterApp::PrismUpdaterApp(int& argc, char** argv) : QApplication(argc, ar
     m_printOnly = parser.isSet("list");
     auto user_version = parser.value("install-version");
     if (!user_version.isEmpty()) {
-        m_userSelectedVersion = Version(user_version);
+        m_userSelectedVersion = ReleasePolicy::versionForTag(user_version);
+        if (m_userSelectedVersion.isEmpty()) {
+            showFatalErrorMessage(tr("Invalid version"), tr("The requested release version is not recognized."));
+            return;
+        }
     }
     m_selectUI = parser.isSet("select-ui");
     m_allowDowngrade = parser.isSet("allow-downgrade");
 
     auto version = parser.value("prism-version");
+    m_prismVersion = version;
     if (!version.isEmpty()) {
         if (version.contains('-')) {
             auto index = version.indexOf('-');
@@ -410,7 +416,7 @@ void PrismUpdaterApp::run()
         return exit(0);
     }
 
-    if (!loadPrismVersionFromExe(m_prismExecutable)) {
+    if (m_prismVersion.isEmpty() && !loadPrismVersionFromExe(m_prismExecutable)) {
         m_prismVersion = BuildConfig.printableVersionString();
         m_prismVersionMajor = BuildConfig.VERSION_MAJOR;
         m_prismVersionMinor = BuildConfig.VERSION_MINOR;
@@ -610,7 +616,7 @@ QList<GitHubRelease> PrismUpdaterApp::nonDraftReleases()
 {
     QList<GitHubRelease> nonDraft;
     for (auto rls : m_releases) {
-        if (rls.isValid() && !rls.draft)
+        if (rls.isValid() && !rls.draft && !rls.version.isEmpty())
             nonDraft.append(rls);
     }
     return nonDraft;
@@ -620,7 +626,7 @@ QList<GitHubRelease> PrismUpdaterApp::newerReleases()
 {
     QList<GitHubRelease> newer;
     for (auto rls : nonDraftReleases()) {
-        if (rls.version > m_prismVersion)
+        if (needUpdate(rls))
             newer.append(rls);
     }
     return newer;
@@ -652,64 +658,8 @@ GitHubRelease PrismUpdaterApp::selectRelease()
 
 QList<GitHubReleaseAsset> PrismUpdaterApp::validReleaseArtifacts(const GitHubRelease& release)
 {
-    QList<GitHubReleaseAsset> valid;
-
-    qDebug() << "Selecting best asset from" << release.tag_name << "for platform" << BuildConfig.BUILD_ARTIFACT
-             << "portable:" << m_isPortable;
-    if (BuildConfig.BUILD_ARTIFACT.isEmpty())
-        qWarning() << "Build platform is not set!";
-    for (auto asset : release.assets) {
-        if (asset.name.endsWith(".zsync")) {
-            qDebug() << "Rejecting zsync file" << asset.name;
-            continue;
-        }
-        if (!m_isAppimage && asset.name.toLower().endsWith("appimage")) {
-            qDebug() << "Rejecting" << asset.name << "because it is an AppImage";
-            continue;
-        } else if (m_isAppimage && !asset.name.toLower().endsWith("appimage")) {
-            qDebug() << "Rejecting" << asset.name << "because it is not an AppImage";
-            continue;
-        }
-        auto asset_name = asset.name.toLower();
-        auto [platform, platform_qt_ver] = StringUtils::splitFirst(BuildConfig.BUILD_ARTIFACT.toLower(), "-qt");
-        auto system_is_arm = QSysInfo::buildCpuArchitecture().contains("arm64");
-        auto asset_is_arm = asset_name.contains("arm64");
-        auto asset_is_archive = asset_name.endsWith(".zip") || asset_name.endsWith(".tar.gz");
-
-        bool for_platform = !platform.isEmpty() && asset_name.contains(platform);
-        if (!for_platform) {
-            qDebug() << "Rejecting" << asset.name << "because platforms do not match";
-        }
-        bool for_portable = asset_name.contains("portable");
-        if (for_platform && asset_name.contains("legacy") && !platform.contains("legacy")) {
-            qDebug() << "Rejecting" << asset.name << "because platforms do not match";
-            for_platform = false;
-        }
-        if (for_platform && ((asset_is_arm && !system_is_arm) || (!asset_is_arm && system_is_arm))) {
-            qDebug() << "Rejecting" << asset.name << "because architecture does not match";
-            for_platform = false;
-        }
-        if (for_platform && platform.contains("windows") && !m_isPortable && asset_is_archive) {
-            qDebug() << "Rejecting" << asset.name << "because it is not an installer";
-            for_platform = false;
-        }
-
-        static const QRegularExpression s_qtPattern("-qt(\\d+)");
-        auto qt_match = s_qtPattern.match(asset_name);
-        if (for_platform && qt_match.hasMatch()) {
-            if (platform_qt_ver.isEmpty() || platform_qt_ver.toInt() != qt_match.captured(1).toInt()) {
-                qDebug() << "Rejecting" << asset.name << "because it is not for the correct qt version" << platform_qt_ver.toInt() << "vs"
-                         << qt_match.captured(1).toInt();
-                for_platform = false;
-            }
-        }
-
-        if (((m_isPortable && for_portable) || (!m_isPortable && !for_portable)) && for_platform) {
-            qDebug() << "Accepting" << asset.name;
-            valid.append(asset);
-        }
-    }
-    return valid;
+    return ReleasePolicy::compatibleAssets(release, BuildConfig.BUILD_ARTIFACT, m_isPortable, m_isAppimage,
+                                           QSysInfo::buildCpuArchitecture().contains("arm64"), BuildConfig.MULTI_LAUNCH_REVISION > 0);
 }
 
 GitHubReleaseAsset PrismUpdaterApp::selectAsset(const QList<GitHubReleaseAsset>& assets)
@@ -917,10 +867,14 @@ void PrismUpdaterApp::performInstall(QFileInfo file)
 
 void PrismUpdaterApp::unpackAndInstall(QFileInfo archive)
 {
-    logUpdate(tr("Backing up install"));
-    backupAppDir();
-
+    const bool hadPortableMarker = QFile::exists(FS::PathCombine(m_rootPath, "portable.txt"));
     if (auto loc = unpackArchive(archive)) {
+        if (!ReleasePolicy::preservePortableMarker(loc.value(), hadPortableMarker)) {
+            showFatalErrorMessage(tr("Update Aborted"), tr("Could not preserve the launcher data location in the extracted update."));
+            return;
+        }
+        logUpdate(tr("Backing up install"));
+        backupAppDir();
         auto marker_file_path = loc.value().absoluteFilePath(".prism_launcher_updater_unpack.marker");
         FS::write(marker_file_path, m_rootPath.toUtf8());
 
@@ -1158,9 +1112,8 @@ void PrismUpdaterApp::downloadReleasePage(const QString& api_url, int page)
     connect(download.get(), &Net::Download::failed, this, &PrismUpdaterApp::downloadError);
 
     m_current_task.reset(download);
-    connect(download.get(), &Net::Download::finished, this, [this]() {
-        qDebug() << "Download" << m_current_task->getUid().toString() << "finished";
-    });
+    connect(download.get(), &Net::Download::finished, this,
+            [this]() { qDebug() << "Download" << m_current_task->getUid().toString() << "finished"; });
 
     QCoreApplication::processEvents();
 
@@ -1187,7 +1140,7 @@ int PrismUpdaterApp::parseReleasePage(const QByteArray* response)
             release.draft = Json::requireBoolean(release_obj, "draft");
             release.prerelease = Json::requireBoolean(release_obj, "prerelease");
             release.body = release_obj["body"].toString();
-            release.version = Version(release.tag_name);
+            release.version = ReleasePolicy::versionForTag(release.tag_name);
 
             auto release_assets_obj = Json::requireArray(release_obj, "assets");
             for (auto asset_json : release_assets_obj) {
@@ -1216,23 +1169,12 @@ int PrismUpdaterApp::parseReleasePage(const QByteArray* response)
 
 GitHubRelease PrismUpdaterApp::getLatestRelease()
 {
-    GitHubRelease latest;
-    for (auto release : m_releases) {
-        if (release.draft)
-            continue;
-        if (release.prerelease && !m_allowPreRelease)
-            continue;
-        if (!latest.isValid() || (release.version > latest.version)) {
-            latest = release;
-        }
-    }
-    return latest;
+    return ReleasePolicy::latestRelease(m_releases, m_allowPreRelease);
 }
 
 bool PrismUpdaterApp::needUpdate(const GitHubRelease& release)
 {
-    auto current_ver = Version(QString("%1.%2.%3").arg(m_prismVersionMajor).arg(m_prismVersionMinor).arg(m_prismVersionPatch));
-    return current_ver < release.version;
+    return ReleasePolicy::needsUpdate(m_prismVersion, release);
 }
 
 void PrismUpdaterApp::downloadError(QString reason)

@@ -66,6 +66,14 @@ Keep the frozen client running and note its process ID from the launcher's conso
 
 Replace the process ID and JDK path with your values. The script saves three Java thread dumps and process statistics in `hang-diagnostics`, without changing the game or its settings. Include those files with the affected session's console log. A log ending during mod initialization alone does not identify a deadlock or GPU/driver stall. Parallel clients still share their game directory and may contend for `latest.log`, `debug.log`, mod configuration, and saves.
 
+If both the game and launcher stop responding, check security software notifications too. Acronis Active Protection can suspend the game's threads and its parent launcher when a mod replaces many resource files. This was confirmed during TaCZ default pack extraction; the JVM dump showed `GetJarResources.copyFolder` while the Acronis log recorded both suspensions.
+
+## Updating this fork
+
+Versions include both the upstream version and fork revision, such as `11.1.1-multi-launch.3`. The updater compares these numerically and recognizes the original `multi-launch-v1.0.0` release as older. The Update button checks for updates; its availability alone does not mean that a newer release exists.
+
+Windows ZIP releases support both portable data and data stored in AppData. Updating preserves the existing `portable.txt` mode, so an AppData installation continues to use its existing instances, accounts, and settings. Do not add `portable.txt` manually to an AppData installation.
+
 ## Building
 
 If you want to build PineconeMC yourself, check the [build instructions](https://prismlauncher.org/wiki/development/build-instructions).

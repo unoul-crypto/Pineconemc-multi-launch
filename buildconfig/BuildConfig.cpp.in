@@ -58,6 +58,7 @@ Config::Config()
     VERSION_MAJOR = @Launcher_VERSION_MAJOR@;
     VERSION_MINOR = @Launcher_VERSION_MINOR@;
     VERSION_PATCH = @Launcher_VERSION_PATCH@;
+    MULTI_LAUNCH_REVISION = @Launcher_MULTI_LAUNCH_REVISION@;
 
     BUILD_PLATFORM = "@Launcher_BUILD_PLATFORM@";
     BUILD_ARTIFACT = "@Launcher_BUILD_ARTIFACT@";
@@ -129,7 +130,7 @@ Config::Config()
 
 QString Config::versionString() const
 {
-    return QString("%1.%2.%3").arg(VERSION_MAJOR).arg(VERSION_MINOR).arg(VERSION_PATCH);
+    return QString("%1.%2.%3-multi-launch.%4").arg(VERSION_MAJOR).arg(VERSION_MINOR).arg(VERSION_PATCH).arg(MULTI_LAUNCH_REVISION);
 }
 
 QString Config::printableVersionString() const
@@ -137,7 +138,7 @@ QString Config::printableVersionString() const
     QString vstr = versionString();
 
     // If the build is not a main release, append the channel
-    if (VERSION_CHANNEL != "stable" && GIT_TAG != vstr) {
+    if (MULTI_LAUNCH_REVISION == 0 && VERSION_CHANNEL != "stable" && GIT_TAG != vstr) {
         vstr += "-" + VERSION_CHANNEL;
     }
     return vstr;

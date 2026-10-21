@@ -185,10 +185,11 @@ set(Launcher_LEGACY_FMLLIBS_BASE_URL "https://files.pineconemc.ru/fmllibs/" CACH
 set(Launcher_VERSION_MAJOR 11)
 set(Launcher_VERSION_MINOR 1)
 set(Launcher_VERSION_PATCH 1)
+set(Launcher_MULTI_LAUNCH_REVISION 3)
 
-set(Launcher_VERSION_NAME "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}")
-set(Launcher_VERSION_NAME4 "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}.0")
-set(Launcher_VERSION_NAME4_COMMA "${Launcher_VERSION_MAJOR},${Launcher_VERSION_MINOR},${Launcher_VERSION_PATCH},0")
+set(Launcher_VERSION_NAME "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}-multi-launch.${Launcher_MULTI_LAUNCH_REVISION}")
+set(Launcher_VERSION_NAME4 "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}.${Launcher_MULTI_LAUNCH_REVISION}")
+set(Launcher_VERSION_NAME4_COMMA "${Launcher_VERSION_MAJOR},${Launcher_VERSION_MINOR},${Launcher_VERSION_PATCH},${Launcher_MULTI_LAUNCH_REVISION}")
 
 # Build platform.
 set(Launcher_BUILD_PLATFORM "unknown" CACHE STRING "A short string identifying the platform that this build was built for. Only used to display in the about dialog.")
