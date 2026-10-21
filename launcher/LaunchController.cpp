@@ -511,10 +511,12 @@ void LaunchController::onFailed(QString reason)
 
 void LaunchController::onProgressRequested(Task* task) const
 {
-    ProgressDialog progDialog(m_parentWidget);
-    progDialog.setSkipButton(true, tr("Abort"));
+    auto* progressDialog = new ProgressDialog(m_parentWidget);
+    progressDialog->setAttribute(Qt::WA_DeleteOnClose);
+    progressDialog->setSkipButton(true, tr("Abort"));
+    connect(this, &Task::finished, progressDialog, &QDialog::reject);
+    progressDialog->showWithTask(task);
     m_launcher->proceed();
-    progDialog.execWithTask(task);
 }
 
 bool LaunchController::abort()

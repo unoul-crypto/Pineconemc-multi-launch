@@ -37,6 +37,7 @@
 
 #include <QDialog>
 #include <QHash>
+#include <QPointer>
 #include <QUuid>
 #include <memory>
 
@@ -65,6 +66,9 @@ class ProgressDialog : public QDialog {
     int execWithTask(std::unique_ptr<Task>&& task);
     int execWithTask(std::unique_ptr<Task>& task);
 
+    // Track a task without disabling other launcher windows or nesting event loops.
+    void showWithTask(Task* task);
+
     void setSkipButton(bool present, QString label = QString());
 
     Task* getTask();
@@ -87,12 +91,13 @@ class ProgressDialog : public QDialog {
 
    private:
     bool handleImmediateResult(QDialog::DialogCode& result);
+    bool prepareTask(Task* task);
     void addTaskProgress(TaskStepProgress const& progress);
 
    private:
     Ui::ProgressDialog* ui;
 
-    Task* m_task;
+    QPointer<Task> m_task;
 
     QList<QMetaObject::Connection> m_taskConnections;
 

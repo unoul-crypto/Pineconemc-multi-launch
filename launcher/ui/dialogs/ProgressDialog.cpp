@@ -84,7 +84,7 @@ void ProgressDialog::setSkipButton(bool present, QString label)
 void ProgressDialog::on_skipButton_clicked(bool checked)
 {
     Q_UNUSED(checked);
-    if (ui->skipButton->isEnabled())  // prevent other triggers from aborting
+    if (ui->skipButton->isEnabled() && m_task)  // prevent other triggers from aborting
         m_task->abort();
 }
 
@@ -130,16 +130,37 @@ void ProgressDialog::updateSize(bool recenterParent)
 
 int ProgressDialog::execWithTask(Task* task)
 {
-    this->m_task = task;
+    if (!prepareTask(task))
+        return result();
+    return QDialog::exec();
+}
+
+void ProgressDialog::showWithTask(Task* task)
+{
+    if (!prepareTask(task))
+        return;
+    setWindowModality(Qt::NonModal);
+    setAttribute(Qt::WA_QuitOnClose, false);
+    show();
+}
+
+bool ProgressDialog::prepareTask(Task* task)
+{
+    for (const auto& connection : m_taskConnections)
+        disconnect(connection);
+    m_taskConnections.clear();
+    m_task = task;
 
     if (!task) {
         qDebug() << "Programmer error: Progress dialog created with null task.";
-        return QDialog::DialogCode::Accepted;
+        done(QDialog::Accepted);
+        return false;
     }
 
     QDialog::DialogCode result{};
     if (handleImmediateResult(result)) {
-        return result;
+        done(result);
+        return false;
     }
 
     // Connect signals.
@@ -150,7 +171,8 @@ int ProgressDialog::execWithTask(Task* task)
     this->m_taskConnections.push_back(connect(task, &Task::details, this, &ProgressDialog::changeStatus));
     this->m_taskConnections.push_back(connect(task, &Task::stepProgress, this, &ProgressDialog::changeStepProgress));
     this->m_taskConnections.push_back(connect(task, &Task::progress, this, &ProgressDialog::changeProgress));
-    this->m_taskConnections.push_back(connect(task, &Task::aborted, this, &ProgressDialog::hide));
+    this->m_taskConnections.push_back(connect(task, &Task::aborted, this, &ProgressDialog::reject));
+    this->m_taskConnections.push_back(connect(task, &QObject::destroyed, this, &ProgressDialog::reject));
     this->m_taskConnections.push_back(connect(task, &Task::abortStatusChanged, ui->skipButton, &QPushButton::setEnabled));
     this->m_taskConnections.push_back(connect(task, &Task::abortButtonTextChanged, ui->skipButton, &QPushButton::setText));
 
@@ -166,7 +188,7 @@ int ProgressDialog::execWithTask(Task* task)
         changeProgress(task->getProgress(), task->getTotalProgress());
     }
 
-    return QDialog::exec();
+    return true;
 }
 
 // TODO: only provide the unique_ptr overloads
@@ -204,17 +226,17 @@ void ProgressDialog::onTaskStarted() {}
 void ProgressDialog::onTaskFailed([[maybe_unused]] QString failure)
 {
     reject();
-    hide();
 }
 
 void ProgressDialog::onTaskSucceeded()
 {
     accept();
-    hide();
 }
 
 void ProgressDialog::changeStatus([[maybe_unused]] const QString& status)
 {
+    if (!m_task)
+        return;
     ui->globalStatusLabel->setText(m_task->getStatus());
     ui->globalStatusLabel->adjustSize();
     ui->globalStatusDetailsLabel->setText(m_task->getDetails());

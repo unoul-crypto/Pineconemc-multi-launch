@@ -1600,9 +1600,11 @@ bool Application::launch(BaseInstance* instance,
                 m_settings->set("SuppressConcurrentLaunchWarning", true);
         }
 
-        QMutexLocker locker(&m_instanceExtrasMutex);
-        auto& extras = m_instanceExtras[instance->id()];
-        auto window = extras.window;
+        QPointer<InstanceWindow> window;
+        {
+            QMutexLocker locker(&m_instanceExtrasMutex);
+            window = m_instanceExtras[instance->id()].window;
+        }
         if (window) {
             if (!window->saveAll()) {
                 return false;
@@ -1622,7 +1624,10 @@ bool Application::launch(BaseInstance* instance,
             controllerPtr->setParentWidget(m_mainWindow);
         }
         connect(controllerPtr, &LaunchController::finished, this, &Application::controllerFinished);
-        extras.controllers.emplace_back(std::move(controller));
+        {
+            QMutexLocker locker(&m_instanceExtrasMutex);
+            m_instanceExtras[instance->id()].controllers.emplace_back(std::move(controller));
+        }
         addRunningInstance();
         QMetaObject::invokeMethod(controllerPtr, &Task::start, Qt::QueuedConnection);
         return true;
@@ -1714,19 +1719,25 @@ void Application::controllerFinished()
     QMetaObject::invokeMethod(
         this,
         [this, controller, instance, id, wasSuccessful] {
-            QMutexLocker locker(&m_instanceExtrasMutex);
-            auto& extras = m_instanceExtras.at(id);
-            const auto iter = std::find_if(extras.controllers.begin(), extras.controllers.end(),
-                                           [controller](const auto& candidate) { return candidate.get() == controller; });
-            if (iter == extras.controllers.end())
-                return;
-
-            extras.controllers.erase(iter);
-            subRunningInstance();
-            if (wasSuccessful && !instance->isRunning() && instance->settings()->get("AutoCloseConsole").toBool() && extras.window) {
-                QMetaObject::invokeMethod(extras.window, &QWidget::close, Qt::QueuedConnection);
+            std::unique_ptr<LaunchController> completed;
+            QPointer<InstanceWindow> window;
+            {
+                QMutexLocker locker(&m_instanceExtrasMutex);
+                auto& extras = m_instanceExtras.at(id);
+                const auto iter = std::find_if(extras.controllers.begin(), extras.controllers.end(),
+                                               [controller](const auto& candidate) { return candidate.get() == controller; });
+                if (iter == extras.controllers.end())
+                    return;
+                completed = std::move(*iter);
+                extras.controllers.erase(iter);
+                window = extras.window;
             }
-            locker.unlock();
+            // Destruction and signals can re-enter window management on the GUI thread.
+            completed.reset();
+            subRunningInstance();
+            if (wasSuccessful && !instance->isRunning() && instance->settings()->get("AutoCloseConsole").toBool() && window) {
+                QMetaObject::invokeMethod(window, &QWidget::close, Qt::QueuedConnection);
+            }
 
             if (shouldExitNow()) {
                 m_status = wasSuccessful ? Succeeded : Failed;
@@ -1794,9 +1805,11 @@ InstanceWindow* Application::showInstanceWindow(BaseInstance* instance, QString 
     if (!instance)
         return nullptr;
     auto id = instance->id();
-    QMutexLocker locker(&m_instanceExtrasMutex);
-    auto& extras = m_instanceExtras[id];
-    auto& window = extras.window;
+    QPointer<InstanceWindow> window;
+    {
+        QMutexLocker locker(&m_instanceExtrasMutex);
+        window = m_instanceExtras[id].window;
+    }
 
     if (window) {
 // If the window is minimized on macOS or Windows, activate and bring it up
@@ -1814,6 +1827,10 @@ InstanceWindow* Application::showInstanceWindow(BaseInstance* instance, QString 
         window->activateWindow();
     } else {
         window = new InstanceWindow(instance);
+        {
+            QMutexLocker locker(&m_instanceExtrasMutex);
+            m_instanceExtras[id].window = window;
+        }
         m_openWindows++;
         connect(window, &InstanceWindow::isClosing, this, &Application::on_windowClose);
     }
@@ -1821,8 +1838,10 @@ InstanceWindow* Application::showInstanceWindow(BaseInstance* instance, QString 
     if (!page.isEmpty()) {
         window->selectPage(page);
     }
-    for (const auto& controller : extras.controllers) {
-        controller->setParentWidget(window);
+    {
+        QMutexLocker locker(&m_instanceExtrasMutex);
+        for (const auto& controller : m_instanceExtras[id].controllers)
+            controller->setParentWidget(window);
     }
     return window;
 }

@@ -33,6 +33,8 @@ Running multiple processes against one game directory can cause conflicting writ
 
 ## Installation
 
+Launch preparation uses non-modal progress windows so that other sessions and launcher windows remain interactive.
+
 - Downloads for this multi-launch fork can be found on its [Releases](https://github.com/unoul-crypto/Pineconemc-multi-launch/releases/latest) page.
 - Extract the Windows archive into the existing launcher installation to keep using its accounts and instances, or into a new directory for a fresh installation. Close the launcher before replacing files.
 - Last build status can be found in the [GitHub Actions](https://github.com/unoul-crypto/Pineconemc-multi-launch/actions) tab.
@@ -52,6 +54,16 @@ These have debug information in the binaries, so their file sizes are relatively
 Feel free to create a GitHub issue if you find a bug or want to suggest a new feature. We have a Discord server where other community members can help you:
 
 [![Octol1ttle's Studio Discord server](https://discordapp.com/api/guilds/1201522867901313045/widget.png?style=banner3)](https://discord.gg/5kcBCvnbTp)
+
+## Diagnosing a frozen Minecraft window on Windows
+
+Keep the frozen client running and note its process ID from the launcher's console. With a JDK matching the game's Java version available, run:
+
+```powershell
+.\scripts\collect-hang-diagnostics.ps1 -ProcessId 12345 -JdkHome "C:\Java\jdk-17"
+```
+
+Replace the process ID and JDK path with your values. The script saves three Java thread dumps and process statistics in `hang-diagnostics`, without changing the game or its settings. Include those files with the affected session's console log. A log ending during mod initialization alone does not identify a deadlock or GPU/driver stall. Parallel clients still share their game directory and may contend for `latest.log`, `debug.log`, mod configuration, and saves.
 
 ## Building
 

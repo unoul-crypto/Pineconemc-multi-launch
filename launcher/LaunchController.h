@@ -36,6 +36,7 @@
 #pragma once
 #include <BaseInstance.h>
 #include <QPointer>
+#include <QWidget>
 #include <tools/BaseProfiler.h>
 
 #include "minecraft/auth/MinecraftAccount.h"
@@ -96,7 +97,7 @@ class LaunchController : public Task {
     BaseProfilerFactory* m_profiler = nullptr;
     QString m_offlineName;
     BaseInstance* m_instance = nullptr;
-    QWidget* m_parentWidget = nullptr;
+    QPointer<QWidget> m_parentWidget;
     InstanceWindow* m_console = nullptr;
     MinecraftAccountPtr m_accountToUse = nullptr;
     AuthSessionPtr m_session = nullptr;
