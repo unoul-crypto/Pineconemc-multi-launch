@@ -34,6 +34,7 @@ Running multiple processes against one game directory can cause conflicting writ
 ## Installation
 
 Launch preparation uses non-modal progress windows so that other sessions and launcher windows remain interactive.
+Update checks run outside the GUI thread; a slow or unavailable update server does not stop input handling or game-log collection. Background update failures are logged without opening a modal error dialog.
 
 - Downloads for this multi-launch fork can be found on its [Releases](https://github.com/unoul-crypto/Pineconemc-multi-launch/releases/latest) page.
 - Extract the Windows archive into the existing launcher installation to keep using its accounts and instances, or into a new directory for a fresh installation. Close the launcher before replacing files.
