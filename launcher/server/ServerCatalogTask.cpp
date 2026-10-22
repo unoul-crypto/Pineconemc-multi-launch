@@ -5,8 +5,9 @@
 ServerCatalogTask::ServerCatalogTask(QNetworkAccessManager* network,
                                      ServerCatalog::Core core,
                                      Operation operation,
-                                     ServerCatalog::Version version)
-    : m_network(network), m_core(core), m_operation(operation), m_version(std::move(version))
+                                     ServerCatalog::Version version,
+                                     QString build)
+    : m_network(network), m_core(core), m_operation(operation), m_version(std::move(version)), m_build(std::move(build))
 {}
 void ServerCatalogTask::json(const QUrl& url, std::function<void(const QJsonDocument&)> callback)
 {
@@ -56,10 +57,24 @@ void ServerCatalogTask::executeTask()
         });
         return;
     }
-    json(ServerCatalog::metadataUrl(m_core, m_version), [this](const QJsonDocument& document) {
+    if (m_operation == Operation::Builds) {
+        auto parse = [this](const QJsonDocument& document) {
+            QString error;
+            if (ServerCatalog::parseBuilds(m_core, m_version, document, &m_builds, &error))
+                emitSucceeded();
+            else
+                emitFailed(error);
+        };
+        if (m_core == ServerCatalog::Core::Vanilla)
+            parse({});
+        else
+            json(ServerCatalog::buildsUrl(m_core, m_version), parse);
+        return;
+    }
+    json(ServerCatalog::metadataUrl(m_core, m_version, m_build), [this](const QJsonDocument& document) {
         if (m_core != ServerCatalog::Core::Fabric) {
             QString error;
-            if (ServerCatalog::parseDownload(m_core, m_version, document, &m_download, &error))
+            if (ServerCatalog::parseDownload(m_core, m_version, document, &m_download, &error, m_build))
                 emitSucceeded();
             else
                 emitFailed(error);
@@ -67,7 +82,16 @@ void ServerCatalogTask::executeTask()
         }
         m_download.core = m_core;
         m_download.minecraftVersion = m_version.id;
-        m_download.loader = ServerCatalog::stableFabricVersion(document, true);
+        if (m_build.isEmpty())
+            m_download.loader = ServerCatalog::stableFabricVersion(document, true);
+        else {
+            QList<ServerCatalog::Build> builds;
+            QString error;
+            if (ServerCatalog::parseBuilds(m_core, m_version, document, &builds, &error))
+                for (const auto& build : builds)
+                    if (build.id == m_build)
+                        m_download.loader = m_build;
+        }
         if (m_download.loader.isEmpty()) {
             emitFailed(tr("No stable Fabric loader is available for this version."));
             return;

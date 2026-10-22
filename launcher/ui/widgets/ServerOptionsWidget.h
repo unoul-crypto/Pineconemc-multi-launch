@@ -13,6 +13,7 @@ class ServerOptionsWidget : public QWidget {
     void setOptions(const ServerOptions& options);
     QString validationError() const;
     void setLocalJarRequired(bool required);
+    void setJarEditable(bool editable);
    signals:
     void changed();
 

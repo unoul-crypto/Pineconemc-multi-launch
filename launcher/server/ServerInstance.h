@@ -23,7 +23,8 @@ class ServerInstance : public BaseInstance {
     QString typeName() const override { return tr("Minecraft server"); }
     bool canEdit() const override { return true; }
     bool canExport() const override { return false; }
-    bool canLaunch() const override { return !isRunning(); }
+    bool canLaunch() const override { return !isRunning() && !m_changingSoftware; }
+    bool isChangingSoftware() const { return m_changingSoftware; }
     void populateLaunchMenu(QMenu*) override {}
     QStringList verboseDescription(AuthSessionPtr, MinecraftTarget::Ptr) override;
     QString jarPath() const;
@@ -33,4 +34,11 @@ class ServerInstance : public BaseInstance {
     bool importJar(const QString& source, QString* error);
     bool eulaAccepted() const;
     bool setEulaAccepted(bool accepted, QString* error);
+   signals:
+    void softwareChangeChanged(bool changing);
+
+   private:
+    friend class ServerChangeTask;
+    void setChangingSoftware(bool changing);
+    bool m_changingSoftware = false;
 };

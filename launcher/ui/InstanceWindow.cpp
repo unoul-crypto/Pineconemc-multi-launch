@@ -35,6 +35,7 @@
  */
 
 #include "InstanceWindow.h"
+#include "server/ServerInstance.h"
 #include "Application.h"
 
 #include <QCloseEvent>
@@ -139,6 +140,8 @@ InstanceWindow::InstanceWindow(BaseInstance* instance, QWidget* parent) : QMainW
         connect(m_instance, &BaseInstance::launchTaskAdded, this, &InstanceWindow::instanceLaunchTaskAdded);
         connect(m_instance, &BaseInstance::launchTaskRemoved, this, &InstanceWindow::instanceLaunchTaskRemoved);
         connect(m_instance, &BaseInstance::runningStatusChanged, this, &InstanceWindow::runningStateChanged);
+        if (auto* server = dynamic_cast<ServerInstance*>(m_instance))
+            connect(server, &ServerInstance::softwareChangeChanged, this, &InstanceWindow::updateButtons);
         auto* logPage = dynamic_cast<LogPage*>(m_container->getPage("console"));
         if (logPage)
             connect(logPage, &LogPage::selectedLaunchTaskChanged, this, &InstanceWindow::selectedLaunchTaskChanged);

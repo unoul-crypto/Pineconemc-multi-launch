@@ -18,89 +18,8 @@
 #include "settings/INISettingsObject.h"
 
 using namespace ServerCatalog;
-namespace {
-struct Response {
-    QByteArray body;
-    int status = 200;
-    int delay = 0;
-};
-class Reply : public QNetworkReply {
-   public:
-    Reply(const QNetworkRequest& request, Response response, QObject* parent) : QNetworkReply(parent), m_body(response.body)
-    {
-        setRequest(request);
-        setUrl(request.url());
-        setAttribute(QNetworkRequest::HttpStatusCodeAttribute, response.status);
-        open(QIODevice::ReadOnly | QIODevice::Unbuffered);
-        QTimer::singleShot(response.delay, this, [this, response] {
-            if (isFinished())
-                return;
-            if (response.status != 200)
-                setError(QNetworkReply::ContentNotFoundError, "fixture HTTP error");
-            setFinished(true);
-            emit readyRead();
-            emit downloadProgress(m_body.size(), m_body.size());
-            emit finished();
-        });
-    }
-    void abort() override
-    {
-        if (isFinished())
-            return;
-        setFinished(true);
-        setError(QNetworkReply::OperationCanceledError, "cancelled");
-        QTimer::singleShot(0, this, [this] { emit finished(); });
-    }
-    qint64 bytesAvailable() const override { return m_body.size() - m_offset + QNetworkReply::bytesAvailable(); }
-
-   protected:
-    qint64 readData(char* data, qint64 max) override
-    {
-        const auto size = qMin(max, static_cast<qint64>(m_body.size() - m_offset));
-        if (!size)
-            return -1;
-        std::memcpy(data, m_body.constData() + m_offset, static_cast<size_t>(size));
-        m_offset += size;
-        return size;
-    }
-
-   private:
-    QByteArray m_body;
-    qint64 m_offset = 0;
-};
-class Network : public QNetworkAccessManager {
-   public:
-    QHash<QString, Response> routes;
-    QList<QNetworkRequest> requests;
-
-   protected:
-    QNetworkReply* createRequest(Operation, const QNetworkRequest& request, QIODevice*) override
-    {
-        requests.append(request);
-        return new Reply(request, routes.value(request.url().toString(), { "not found", 404, 0 }), this);
-    }
-};
-QJsonDocument json(const QByteArray& bytes)
-{
-    return QJsonDocument::fromJson(bytes);
-}
-QString hash(const QByteArray& data, QCryptographicHash::Algorithm algorithm)
-{
-    return QString::fromLatin1(QCryptographicHash::hash(data, algorithm).toHex());
-}
-std::unique_ptr<INISettingsObject> global(const QString& path)
-{
-    auto settings = std::make_unique<INISettingsObject>(path);
-    for (const auto& key :
-         { "ShowGameTime", "RecordGameTime", "ShowConsole", "AutoCloseConsole", "ShowConsoleOnError", "LogPrePostOutput" })
-        settings->registerSetting(key, false);
-    for (const auto& key : { "PreLaunchCommand", "WrapperCommand", "PostExitCommand", "JavaPath" })
-        settings->registerSetting(key, QString());
-    settings->registerSetting("ConsoleMaxLines", 1000);
-    settings->registerSetting("ConsoleOverflowStop", false);
-    return settings;
-}
-}  // namespace
+#include "ServerNetworkFixture.h"
+using namespace ServerTest;
 class ServerCatalogTest : public QObject {
     Q_OBJECT
    private slots:
@@ -281,6 +200,54 @@ class ServerCatalogTest : public QObject {
         QTest::qWait(80);
         QCOMPARE(catalogFinished.count(), 1);
         QCOMPARE(task.getState(), Task::State::AbortedByUser);
+    }
+    void explicitSoftwareVersionsArePinned()
+    {
+        QString error;
+        QList<Build> builds;
+        const Version version{ "1.20.1", {} };
+        const auto paper =
+            json("[{\"id\":196,\"channel\":\"STABLE\"},{\"id\":195,\"channel\":\"STABLE\"},{\"id\":999,\"channel\":\"EXPERIMENTAL\"}]");
+        QVERIFY(parseBuilds(Core::Paper, version, paper, &builds, &error));
+        QCOMPARE(builds.size(), 2);
+        QCOMPARE(builds.last().id, QString("195"));
+        const auto purpur = json("{\"version\":\"1.20.1\",\"builds\":{\"all\":[\"2061\",\"2062\"]}}");
+        QVERIFY(parseBuilds(Core::Purpur, version, purpur, &builds, &error));
+        QCOMPARE(builds.first().id, QString("2062"));
+        const auto fabric = json(
+            "[{\"loader\":{\"version\":\"0.19.5\",\"stable\":true}},{\"loader\":{\"version\":\"0.16.14\",\"stable\":false}},{\"loader\":{"
+            "\"version\":\"0.11.0\",\"stable\":false}}]");
+        QVERIFY(parseBuilds(Core::Fabric, version, fabric, &builds, &error));
+        QCOMPARE(builds.size(), 2);
+        QCOMPARE(builds.last().id, QString("0.16.14"));
+        QVERIFY(!builds.last().recommended);
+        QCOMPARE(metadataUrl(Core::Paper, version, "195").path(), QString("/v3/projects/paper/versions/1.20.1/builds/195"));
+        QCOMPARE(metadataUrl(Core::Purpur, version, "2061").path(), QString("/v2/purpur/1.20.1/2061"));
+        Download download;
+        const QJsonDocument paperBuild(QJsonObject{
+            { "id", 195 },
+            { "channel", "STABLE" },
+            { "downloads",
+              QJsonObject{ { "server:default", QJsonObject{ { "url", "https://example.test/server.jar" },
+                                                            { "checksums", QJsonObject{ { "sha256", QString(64, 'a') } } } } } } } });
+        QVERIFY(parseDownload(Core::Paper, version, paperBuild, &download, &error, "195"));
+        QCOMPARE(download.build, QString("195"));
+        QVERIFY(!parseDownload(Core::Paper, version, paperBuild, &download, &error, "196"));
+        const auto failedPurpur = json("{\"version\":\"1.20.1\",\"build\":\"2061\",\"result\":\"FAILURE\"}");
+        QVERIFY(!parseDownload(Core::Purpur, version, failedPurpur, &download, &error, "2061"));
+        QVERIFY(error.contains("2061"));
+        Network network;
+        network.routes.insert(metadataUrl(Core::Fabric, version).toString(), { fabric.toJson() });
+        network.routes.insert("https://meta.fabricmc.net/v2/versions/installer", { "[{\"version\":\"1.1.2\",\"stable\":true}]" });
+        ServerCatalogTask selected(&network, Core::Fabric, ServerCatalogTask::Operation::Resolve, version, "0.16.14");
+        selected.start();
+        QTRY_VERIFY(selected.isFinished());
+        QVERIFY2(selected.wasSuccessful(), qPrintable(selected.failReason()));
+        QCOMPARE(selected.download().loader, QString("0.16.14"));
+        ServerCatalogTask absent(&network, Core::Fabric, ServerCatalogTask::Operation::Resolve, version, "0.16.13");
+        absent.start();
+        QTRY_VERIFY(absent.isFinished());
+        QVERIFY(!absent.wasSuccessful());
     }
     void liveOfficialServices()
     {

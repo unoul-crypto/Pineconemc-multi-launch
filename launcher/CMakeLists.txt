@@ -34,10 +34,16 @@ set(CORE_SOURCES
     server/ServerCatalog.cpp
     server/ServerCatalogTask.h
     server/ServerCatalogTask.cpp
+    server/ServerChangeTask.h
+    server/ServerChangeTask.cpp
     server/ServerRequest.h
     server/ServerRequest.cpp
     ui/widgets/ServerOptionsWidget.h
     ui/widgets/ServerOptionsWidget.cpp
+    ui/widgets/ServerSoftwareWidget.h
+    ui/widgets/ServerSoftwareWidget.cpp
+    ui/dialogs/ServerSoftwareDialog.h
+    ui/dialogs/ServerSoftwareDialog.cpp
     ui/pages/modplatform/ServerCreationPage.h
     ui/pages/modplatform/ServerCreationPage.cpp
     ui/pages/instance/ServerSettingsPage.h

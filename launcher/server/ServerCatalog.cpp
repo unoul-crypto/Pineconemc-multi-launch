@@ -64,15 +64,22 @@ QUrl versionsUrl(Core core)
     }
     return {};
 }
-QUrl metadataUrl(Core core, const Version& version)
+QUrl buildsUrl(Core core, const Version& version)
+{
+    if (core == Core::Purpur)
+        return QUrl("https://api.purpurmc.org/v2/purpur/" + path(version.id));
+    return metadataUrl(core, version);
+}
+QUrl metadataUrl(Core core, const Version& version, const QString& build)
 {
     switch (core) {
         case Core::Vanilla:
             return version.metadataUrl;
         case Core::Paper:
-            return QUrl("https://fill.papermc.io/v3/projects/paper/versions/" + path(version.id) + "/builds");
+            return QUrl("https://fill.papermc.io/v3/projects/paper/versions/" + path(version.id) + "/builds" +
+                        (build.isEmpty() ? QString() : "/" + path(build)));
         case Core::Purpur:
-            return QUrl("https://api.purpurmc.org/v2/purpur/" + path(version.id) + "/latest");
+            return QUrl("https://api.purpurmc.org/v2/purpur/" + path(version.id) + "/" + (build.isEmpty() ? "latest" : path(build)));
         case Core::Fabric:
             return QUrl("https://meta.fabricmc.net/v2/versions/loader/" + path(version.id));
         case Core::Custom:
@@ -123,6 +130,42 @@ bool parseVersions(Core core, const QJsonDocument& json, QList<Version>* result,
     }
     return true;
 }
+bool parseBuilds(Core core, const Version& version, const QJsonDocument& json, QList<Build>* result, QString* error)
+{
+    result->clear();
+    if (core == Core::Vanilla)
+        result->append({ version.id, true });
+    else if (core == Core::Paper) {
+        for (const auto& value : json.array()) {
+            const auto build = value.toObject();
+            if (build.value("channel") == "STABLE" && build.value("id").toInt() > 0)
+                result->append({ QString::number(build.value("id").toInt()), true });
+        }
+    } else if (core == Core::Purpur && json.object().value("version").toString() == version.id) {
+        for (const auto& value : json.object().value("builds").toObject().value("all").toArray()) {
+            const auto id = value.toString();
+            bool ok = false;
+            if (id.toInt(&ok) > 0 && ok)
+                result->append({ id, id == json.object().value("builds").toObject().value("latest").toString() });
+        }
+    } else if (core == Core::Fabric) {
+        for (const auto& value : json.array()) {
+            const auto loader = value.toObject().value("loader").toObject();
+            const auto id = loader.value("version").toString();
+            // Fabric's unattended server launcher requires loader 0.12 or newer.
+            if (release(id) && QVersionNumber::compare(QVersionNumber::fromString(id), QVersionNumber(0, 12)) >= 0)
+                result->append({ id, loader.value("stable").toBool() });
+        }
+    }
+    std::sort(result->begin(), result->end(), [](const Build& a, const Build& b) {
+        return QVersionNumber::compare(QVersionNumber::fromString(a.id), QVersionNumber::fromString(b.id)) > 0;
+    });
+    if (result->isEmpty()) {
+        *error = QObject::tr("No supported server builds are available for this Minecraft version.");
+        return false;
+    }
+    return true;
+}
 bool validDownload(const Download& download)
 {
     if (download.core == Core::Custom || !release(download.minecraftVersion) || !secure(download.url) || download.size < -1)
@@ -135,12 +178,22 @@ bool validDownload(const Download& download)
                                                           : QCryptographicHash::Md5;
     return download.hashAlgorithm == algorithm && hex(download.checksum, length);
 }
-bool parseDownload(Core core, const Version& version, const QJsonDocument& json, Download* result, QString* error)
+bool parseDownload(Core core,
+                   const Version& version,
+                   const QJsonDocument& json,
+                   Download* result,
+                   QString* error,
+                   const QString& requestedBuild)
 {
     Download download;
     download.core = core;
     download.minecraftVersion = version.id;
     const auto object = json.object();
+    if (core == Core::Purpur && object.contains("result") && object.value("result") != "SUCCESS") {
+        *error = QObject::tr("Purpur build %1 did not finish successfully and has no installable JAR. Select another build.")
+                     .arg(object.value("build").toString());
+        return false;
+    }
     if (core == Core::Vanilla && object.value("id").toString() == version.id) {
         const auto server = object.value("downloads").toObject().value("server").toObject();
         download.url = QUrl(server.value("url").toString());
@@ -149,9 +202,12 @@ bool parseDownload(Core core, const Version& version, const QJsonDocument& json,
         download.size = server.value("size").toInteger(-1);
     } else if (core == Core::Paper) {
         QJsonObject latest;
-        for (const auto& item : json.array()) {
+        const auto builds = json.isObject() ? QJsonArray{ json.object() } : json.array();
+        for (const auto& item : builds) {
             const auto build = item.toObject();
-            if (build.value("channel") == "STABLE" && build.value("id").toInt() > latest.value("id").toInt())
+            if (build.value("channel") == "STABLE" &&
+                (requestedBuild.isEmpty() || QString::number(build.value("id").toInt()) == requestedBuild) &&
+                build.value("id").toInt() > latest.value("id").toInt())
                 latest = build;
         }
         const auto server = latest.value("downloads").toObject().value("server:default").toObject();
@@ -163,7 +219,7 @@ bool parseDownload(Core core, const Version& version, const QJsonDocument& json,
     } else if (core == Core::Purpur && object.value("version").toString() == version.id && object.value("result") == "SUCCESS") {
         download.build = object.value("build").toString();
         static const QRegularExpression numeric(QStringLiteral("^[0-9]+$"));
-        if (numeric.match(download.build).hasMatch())
+        if (numeric.match(download.build).hasMatch() && (requestedBuild.isEmpty() || requestedBuild == download.build))
             download.url = QUrl("https://api.purpurmc.org/v2/purpur/" + path(version.id) + "/" + download.build + "/download");
         download.checksum = object.value("md5").toString();
         download.hashAlgorithm = QCryptographicHash::Md5;

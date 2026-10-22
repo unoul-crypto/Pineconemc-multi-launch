@@ -63,6 +63,8 @@ QStringList ServerInstance::launchArguments() const
 }
 QString ServerInstance::validateLaunch() const
 {
+    if (m_changingSoftware)
+        return tr("Wait for the server software installation to finish.");
     const auto min = m_settings->get("ServerMinMem").toInt();
     const auto max = m_settings->get("ServerMaxMem").toInt();
     if (min < 128 || max < min)
@@ -78,7 +80,7 @@ QString ServerInstance::validateLaunch() const
 }
 bool ServerInstance::importJar(const QString& source, QString* error)
 {
-    if (isRunning()) {
+    if (isRunning() || m_changingSoftware) {
         if (error)
             *error = tr("Stop the server before replacing its JAR.");
         return false;
@@ -94,6 +96,8 @@ bool ServerInstance::importJar(const QString& source, QString* error)
             *error = tr("The selected file is not a JAR archive.");
         return false;
     }
+    if (QFileInfo(source).canonicalFilePath() == QFileInfo(jarPath()).canonicalFilePath())
+        return true;
     QDir().mkpath(gameRoot());
     const auto destination = QDir(gameRoot()).filePath("server.jar");
     if (QFileInfo(source).canonicalFilePath() != QFileInfo(destination).canonicalFilePath()) {
@@ -147,9 +151,17 @@ bool ServerInstance::setEulaAccepted(bool accepted, QString* error)
 }
 LaunchTask* ServerInstance::createLaunchTask(AuthSessionPtr, MinecraftTarget::Ptr)
 {
-    if (isRunning())
+    if (!canLaunch())
         return nullptr;
     return adoptLaunchTask(std::make_unique<ServerLaunchTask>(this));
+}
+void ServerInstance::setChangingSoftware(bool changing)
+{
+    if (m_changingSoftware == changing)
+        return;
+    m_changingSoftware = changing;
+    emit softwareChangeChanged(changing);
+    emit propertiesChanged(this);
 }
 QString ServerInstance::getStatusbarDescription()
 {

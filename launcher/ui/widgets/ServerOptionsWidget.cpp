@@ -99,3 +99,9 @@ void ServerOptionsWidget::setLocalJarRequired(bool required)
         label->setVisible(required);
     emit changed();
 }
+void ServerOptionsWidget::setJarEditable(bool editable)
+{
+    m_jar->setReadOnly(!editable);
+    if (auto* browse = m_jar->parentWidget()->findChild<QPushButton*>())
+        browse->setVisible(editable);
+}

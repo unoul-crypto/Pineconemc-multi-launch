@@ -43,6 +43,7 @@
 #include "FileSystem.h"
 
 #include "MainWindow.h"
+#include "server/ServerInstance.h"
 #include "ui_MainWindow.h"
 
 #include <QDir>
@@ -1493,6 +1494,10 @@ void MainWindow::on_actionDeleteInstance_triggered()
     if (!m_selectedInstance) {
         return;
     }
+    if (auto* server = dynamic_cast<ServerInstance*>(m_selectedInstance); server && server->isChangingSoftware()) {
+        QMessageBox::warning(this, tr("Server software installation"), tr("Wait for the server software change to finish before deleting this instance."));
+        return;
+    }
 
     if (m_selectedInstance->isRunning()) {
         CustomMessageBox::selectable(this, tr("Cannot Delete Running Instance"),
@@ -1783,7 +1788,8 @@ void MainWindow::setInstanceActionsEnabled(bool enabled)
     ui->actionChangeInstGroup->setEnabled(enabled);
     ui->actionViewSelectedInstFolder->setEnabled(enabled);
     ui->actionExportInstance->setEnabled(enabled);
-    ui->actionDeleteInstance->setEnabled(enabled);
+    const auto* serverInstance = dynamic_cast<ServerInstance*>(m_selectedInstance);
+    ui->actionDeleteInstance->setEnabled(enabled && !(serverInstance && serverInstance->isChangingSoftware()));
     ui->actionCopyInstance->setEnabled(enabled && !server);
     ui->actionCreateInstanceShortcut->setEnabled(enabled && !server);
 }

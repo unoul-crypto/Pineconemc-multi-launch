@@ -7,6 +7,7 @@
 class ServerInstance;
 class ServerOptionsWidget;
 class QFormLayout;
+class QLabel;
 class ServerSettingsPage : public QWidget, public BasePage {
     Q_OBJECT
    public:
@@ -27,4 +28,5 @@ class ServerSettingsPage : public QWidget, public BasePage {
     QMap<QString, QString> m_loaded;
     ServerOptions m_loadedOptions;
     bool m_loadedSuccessfully = false;
+    QLabel* m_softwareLabel;
 };

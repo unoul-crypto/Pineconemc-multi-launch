@@ -33,11 +33,15 @@ Running multiple processes against one game directory can cause conflicting writ
 
 ## Server instances
 
-Choose **Add Instance → Server**, select **Vanilla**, **Paper**, **Purpur**, or **Fabric**, and choose a Minecraft release. The launcher downloads the server JAR from its official service. Paper uses the latest stable build for the selected Minecraft version; Fabric uses a compatible stable loader and a pinned stable launcher version. **Custom JAR** keeps manual JAR installation available.
+Choose **Add Instance → Server**, select **Vanilla**, **Paper**, **Purpur**, or **Fabric**, and choose a Minecraft release. Then choose a specific **Software version / build**: a stable Paper build, a Purpur build, or a supported Fabric loader (0.12 or newer). Vanilla's server version follows the Minecraft version. Recommended defaults are selected automatically, and the chosen version is pinned instead of silently following the latest build. **Custom JAR** keeps manual JAR installation available.
 
 Select a compatible Java executable and minimum/maximum memory. Each server is installed in the instance's separate `server` directory; worlds, plugins, mods, configuration, and logs stay there. The first start may download additional libraries through the server's official bootstrap launcher. Installer JARs and servers requiring a separate startup script are not supported yet.
 
 Downloads support cancellation and progress reporting. Vanilla, Paper, and Purpur JARs are checked against the checksum supplied by their service. Fabric's generated launcher endpoint does not supply a separate checksum; it is downloaded over HTTPS and checked as a JAR archive. Failed or cancelled downloads are not committed. Installed software, Minecraft version, build, and Fabric loader/launcher versions are saved with the instance. Existing server instances are not updated automatically.
+
+For an existing, stopped server, open **Server settings → Change software / version…**. The same selector can change its software, Minecraft version, build, or Fabric loader. Confirm the compatibility warning before installation. Changing software or downgrading Minecraft may make worlds, mods, plugins, and configurations incompatible; make a full server backup yourself before continuing.
+
+The launcher saves the old JAR and `instance.cfg` under the instance's `server-backups/<timestamp>` directory. It installs a new JAR alongside the previous one and atomically selects it through `instance.cfg`; download cancellation, checksum errors, or backup failures leave the previous software selected. Launching or deleting that instance is blocked during installation, and a folder lock also prevents another launcher from starting it. Worlds, EULA, `server.properties`, mods, plugins, Java, and memory settings are preserved. This software backup does **not** back up or roll back world/plugin data. Before starting the new software, restoring the backed-up `instance.cfg` selects the old JAR, which remains in its original location.
 
 - Read the Minecraft EULA and select its checkbox before the first launch. Server launches do not require a launcher account.
 - Use the console input to send commands, with or without a leading `/`. **Stop server** sends `stop` and waits for the server to save and exit. **Force kill** terminates it immediately.

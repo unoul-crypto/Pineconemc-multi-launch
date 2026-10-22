@@ -1,20 +1,60 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#include <QComboBox>
 #include <QDir>
 #include <QFile>
+#include <QJsonObject>
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
+#include "ServerNetworkFixture.h"
 #include "server/PropertiesFile.h"
 #include "server/ServerInstance.h"
 #include "server/ServerLaunchTask.h"
 #include "settings/INISettingsObject.h"
 #include "ui/pages/instance/ServerSettingsPage.h"
 #include "ui/widgets/ServerOptionsWidget.h"
+#include "ui/widgets/ServerSoftwareWidget.h"
 
 class ServerUITest : public QObject {
     Q_OBJECT
    private slots:
+    void softwareSelectorKeepsInstalledBuildAndRejectsStaleResults()
+    {
+        using namespace ServerCatalog;
+        ServerTest::Network network;
+        const ServerCatalog::Version version{ "1.20.1", {} };
+        network.routes.insert(versionsUrl(Core::Paper).toString(), { "{\"versions\":{\"1.20\":[\"1.20.1\"]}}" });
+        network.routes.insert(buildsUrl(Core::Paper, version).toString(),
+                              { "[{\"id\":196,\"channel\":\"STABLE\"},{\"id\":195,\"channel\":\"STABLE\"}]" });
+        for (const auto& build : { QString("195"), QString("196") }) {
+            const QJsonDocument metadata(QJsonObject{
+                { "id", build.toInt() },
+                { "channel", "STABLE" },
+                { "downloads",
+                  QJsonObject{ { "server:default", QJsonObject{ { "url", "https://example.test/paper.jar" },
+                                                                { "checksums", QJsonObject{ { "sha256", QString(64, 'a') } } } } } } } });
+            network.routes.insert(metadataUrl(Core::Paper, version, build).toString(), { metadata.toJson() });
+        }
+        ServerSoftwareWidget widget(&network);
+        widget.setSelection(Core::Paper, "1.20.1", "195");
+        widget.setActive(true);
+        QTRY_VERIFY(widget.download().has_value());
+        QCOMPARE(widget.download()->build, QString("195"));
+        auto* build = widget.findChild<QComboBox*>("serverCoreVersion");
+        QVERIFY(build);
+        QCOMPARE(build->currentData().toString(), QString("195"));
+        network.routes[metadataUrl(Core::Paper, version, "196").toString()].delay = 100;
+        build->setCurrentIndex(build->findData("196"));
+        QVERIFY(!widget.download().has_value());
+        auto* software = widget.findChild<QComboBox*>("serverSoftware");
+        software->setCurrentIndex(software->findData(static_cast<int>(Core::Custom)));
+        QTest::qWait(120);
+        QCOMPARE(widget.core(), Core::Custom);
+        QVERIFY(!widget.download().has_value());
+        QVERIFY(!widget.findChild<QComboBox*>("serverMinecraftVersion")->isEnabled());
+        widget.setActive(false);
+    }
     void optionsRoundTripAndValidation()
     {
         QTemporaryDir dir;
@@ -72,6 +112,7 @@ class ServerUITest : public QObject {
             file.write(original);
         }
         ServerSettingsPage page(&instance);
+        QVERIFY(page.findChild<QLineEdit*>("serverJarPath")->isReadOnly());
         auto* port = page.findChild<QSpinBox*>("server-port");
         QVERIFY(port);
         port->setValue(25566);

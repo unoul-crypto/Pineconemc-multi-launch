@@ -8,11 +8,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include "server/PropertiesFile.h"
 #include "server/ServerInstance.h"
+#include "ui/dialogs/ServerSoftwareDialog.h"
 #include "ui/widgets/ServerOptionsWidget.h"
 
 ServerSettingsPage::ServerSettingsPage(ServerInstance* instance, QWidget* parent) : QWidget(parent), m_instance(instance)
@@ -28,7 +30,22 @@ ServerSettingsPage::ServerSettingsPage(ServerInstance* instance, QWidget* parent
     scroll->setFrameShape(QFrame::NoFrame);
     m_editable = new QWidget(scroll);
     auto* contents = new QVBoxLayout(m_editable);
+    m_softwareLabel = new QLabel(m_editable);
+    m_softwareLabel->setWordWrap(true);
+    contents->addWidget(m_softwareLabel);
+    auto* changeSoftware = new QPushButton(tr("Change software / version…"), m_editable);
+    changeSoftware->setObjectName("changeServerSoftware");
+    contents->addWidget(changeSoftware);
+    connect(changeSoftware, &QPushButton::clicked, this, [this] {
+        if (m_instance->isRunning() || m_instance->isChangingSoftware() || !apply())
+            return;
+        auto* dialog = new ServerSoftwareDialog(m_instance, this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        connect(dialog, &ServerSoftwareDialog::softwareChanged, this, &ServerSettingsPage::load);
+        dialog->show();
+    });
     m_options = new ServerOptionsWidget(m_editable);
+    m_options->setJarEditable(false);
     contents->addWidget(m_options);
     auto* properties = new QGroupBox("server.properties", m_editable);
     auto* form = new QFormLayout(properties);
@@ -73,8 +90,13 @@ ServerSettingsPage::ServerSettingsPage(ServerInstance* instance, QWidget* parent
     scroll->setWidget(m_editable);
     layout->addWidget(scroll);
     connect(instance, &BaseInstance::runningStatusChanged, this, [this](bool running) {
-        m_editable->setEnabled(!running);
+        m_editable->setEnabled(!running && !m_instance->isChangingSoftware());
         if (!running)
+            load();
+    });
+    connect(instance, &ServerInstance::softwareChangeChanged, this, [this](bool changing) {
+        m_editable->setEnabled(!changing && !m_instance->isRunning());
+        if (!changing)
             load();
     });
     load();
@@ -86,10 +108,16 @@ void ServerSettingsPage::openedImpl()
 void ServerSettingsPage::load()
 {
     auto* settings = m_instance->settings();
+    auto software = m_instance->getStatusbarDescription();
+    if (!settings->get("ServerBuild").toString().isEmpty())
+        software += tr(" · build %1").arg(settings->get("ServerBuild").toString());
+    if (!settings->get("ServerLoaderVersion").toString().isEmpty())
+        software += tr(" · loader %1").arg(settings->get("ServerLoaderVersion").toString());
+    m_softwareLabel->setText(software);
     m_options->setOptions({ m_instance->jarPath(), settings->get("ServerJavaPath").toString(), settings->get("ServerMinMem").toInt(),
                             settings->get("ServerMaxMem").toInt(), settings->get("ServerArgs").toString(), m_instance->eulaAccepted() });
     m_loadedOptions = m_options->options();
-    m_editable->setEnabled(!m_instance->isRunning());
+    m_editable->setEnabled(!m_instance->isRunning() && !m_instance->isChangingSoftware());
     PropertiesFile file;
     QString error;
     m_loadedSuccessfully = PropertiesFile::read(QDir(m_instance->gameRoot()).filePath("server.properties"), &file, &error);
@@ -141,7 +169,7 @@ QMap<QString, QString> ServerSettingsPage::propertyValues() const
 }
 bool ServerSettingsPage::apply()
 {
-    if (m_instance->isRunning())
+    if (m_instance->isRunning() || m_instance->isChangingSoftware())
         return true;
     if (!m_loadedSuccessfully)
         return false;

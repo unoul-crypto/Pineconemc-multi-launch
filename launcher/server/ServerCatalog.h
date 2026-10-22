@@ -11,6 +11,10 @@ struct Version {
     QString id;
     QUrl metadataUrl;
 };
+struct Build {
+    QString id;
+    bool recommended = false;
+};
 struct Download {
     Core core = Core::Custom;
     QString minecraftVersion;
@@ -25,9 +29,16 @@ struct Download {
 QString name(Core core);
 QByteArray userAgent();
 QUrl versionsUrl(Core core);
-QUrl metadataUrl(Core core, const Version& version);
+QUrl buildsUrl(Core core, const Version& version);
+QUrl metadataUrl(Core core, const Version& version, const QString& build = {});
 bool parseVersions(Core core, const QJsonDocument& json, QList<Version>* result, QString* error);
-bool parseDownload(Core core, const Version& version, const QJsonDocument& json, Download* result, QString* error);
+bool parseBuilds(Core core, const Version& version, const QJsonDocument& json, QList<Build>* result, QString* error);
+bool parseDownload(Core core,
+                   const Version& version,
+                   const QJsonDocument& json,
+                   Download* result,
+                   QString* error,
+                   const QString& build = {});
 QString stableFabricVersion(const QJsonDocument& json, bool loader);
 bool validDownload(const Download& download);
 }  // namespace ServerCatalog
