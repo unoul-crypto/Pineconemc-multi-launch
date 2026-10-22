@@ -2,7 +2,7 @@
 #pragma once
 #include <QMap>
 #include <QWidget>
-#include "server/ServerCreationTask.h"
+#include "server/ServerOptions.h"
 #include "ui/pages/BasePage.h"
 class ServerInstance;
 class ServerOptionsWidget;

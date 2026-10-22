@@ -33,7 +33,11 @@ Running multiple processes against one game directory can cause conflicting writ
 
 ## Server instances
 
-Choose **Add Instance → Server (JAR)** to create a server from your own runnable JAR. Select its Java executable and minimum/maximum memory. The JAR is copied into the instance's `server` directory; worlds, plugins, mods, configuration, and logs stay in that directory. Installer JARs and servers requiring a separate startup script are not supported in this first version.
+Choose **Add Instance → Server**, select **Vanilla**, **Paper**, **Purpur**, or **Fabric**, and choose a Minecraft release. The launcher downloads the server JAR from its official service. Paper uses the latest stable build for the selected Minecraft version; Fabric uses a compatible stable loader and a pinned stable launcher version. **Custom JAR** keeps manual JAR installation available.
+
+Select a compatible Java executable and minimum/maximum memory. Each server is installed in the instance's separate `server` directory; worlds, plugins, mods, configuration, and logs stay there. The first start may download additional libraries through the server's official bootstrap launcher. Installer JARs and servers requiring a separate startup script are not supported yet.
+
+Downloads support cancellation and progress reporting. Vanilla, Paper, and Purpur JARs are checked against the checksum supplied by their service. Fabric's generated launcher endpoint does not supply a separate checksum; it is downloaded over HTTPS and checked as a JAR archive. Failed or cancelled downloads are not committed. Installed software, Minecraft version, build, and Fabric loader/launcher versions are saved with the instance. Existing server instances are not updated automatically.
 
 - Read the Minecraft EULA and select its checkbox before the first launch. Server launches do not require a launcher account.
 - Use the console input to send commands, with or without a leading `/`. **Stop server** sends `stop` and waits for the server to save and exit. **Force kill** terminates it immediately.

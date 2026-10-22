@@ -35,6 +35,13 @@ class ServerUITest : public QObject {
         widget.findChild<QSpinBox*>("serverMaxMemory")->setValue(2048);
         widget.findChild<QLineEdit*>("serverJavaPath")->clear();
         QVERIFY(!widget.validationError().isEmpty());
+        widget.findChild<QLineEdit*>("serverJavaPath")->setText("java");
+        widget.findChild<QLineEdit*>("serverJarPath")->clear();
+        QVERIFY(!widget.validationError().isEmpty());
+        widget.setLocalJarRequired(false);
+        QVERIFY(widget.validationError().isEmpty());
+        widget.setLocalJarRequired(true);
+        QVERIFY(!widget.validationError().isEmpty());
     }
     void propertiesEditorAppliesOnlyChangedFieldsAndLocksDuringRun()
     {

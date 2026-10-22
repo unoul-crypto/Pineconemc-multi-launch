@@ -28,7 +28,14 @@ set(CORE_SOURCES
     server/ServerLaunchTask.h
     server/ServerLaunchTask.cpp
     server/ServerCreationTask.h
+    server/ServerOptions.h
     server/ServerCreationTask.cpp
+    server/ServerCatalog.h
+    server/ServerCatalog.cpp
+    server/ServerCatalogTask.h
+    server/ServerCatalogTask.cpp
+    server/ServerRequest.h
+    server/ServerRequest.cpp
     ui/widgets/ServerOptionsWidget.h
     ui/widgets/ServerOptionsWidget.cpp
     ui/pages/modplatform/ServerCreationPage.h

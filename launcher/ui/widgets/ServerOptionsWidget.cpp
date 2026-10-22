@@ -82,11 +82,20 @@ void ServerOptionsWidget::setOptions(const ServerOptions& options)
 QString ServerOptionsWidget::validationError() const
 {
     const auto value = options();
-    if (!QFileInfo(value.jar).isFile() || QFileInfo(value.jar).suffix().compare("jar", Qt::CaseInsensitive) != 0)
+    if (m_localJarRequired && (!QFileInfo(value.jar).isFile() || QFileInfo(value.jar).suffix().compare("jar", Qt::CaseInsensitive) != 0))
         return tr("Select a runnable server .jar file.");
     if (value.java.isEmpty())
         return tr("Select Java or enter its executable name, for example java.");
     if (value.maxMemory < value.minMemory)
         return tr("Maximum memory must not be below minimum memory.");
     return {};
+}
+void ServerOptionsWidget::setLocalJarRequired(bool required)
+{
+    m_localJarRequired = required;
+    auto* row = m_jar->parentWidget();
+    row->setVisible(required);
+    if (auto* label = qobject_cast<QFormLayout*>(layout())->labelForField(row))
+        label->setVisible(required);
+    emit changed();
 }

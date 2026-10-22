@@ -1,4 +1,5 @@
 project(tests)
+ecm_add_test(ServerCatalog_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test TEST_NAME ServerCatalog)
 
 ecm_add_test(ServerProperties_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test TEST_NAME ServerProperties)
 ecm_add_test(ServerInstance_test.cpp LINK_LIBRARIES Launcher_logic Qt${QT_VERSION_MAJOR}::Test TEST_NAME ServerInstance)

@@ -21,6 +21,9 @@ ServerInstance::ServerInstance(SettingsObject* global, std::unique_ptr<SettingsO
     m_settings->registerSetting("ServerMinMem", 1024);
     m_settings->registerSetting("ServerMaxMem", 2048);
     m_settings->registerSetting("ServerArgs", "nogui");
+    m_settings->registerSetting("ServerCore", "Custom JAR");
+    for (const auto& key : { "ServerMinecraftVersion", "ServerBuild", "ServerLoaderVersion", "ServerInstallerVersion" })
+        m_settings->registerSetting(key, QString());
     m_settings->registerSetting("JvmArgs", "");
 }
 QString ServerInstance::gameRoot() const
@@ -118,6 +121,9 @@ bool ServerInstance::importJar(const QString& source, QString* error)
                 *error = output.errorString();
             return false;
         }
+        m_settings->set("ServerCore", "Custom JAR");
+        for (const auto& key : { "ServerMinecraftVersion", "ServerBuild", "ServerLoaderVersion", "ServerInstallerVersion" })
+            m_settings->set(key, QString());
     }
     m_settings->set("ServerJarPath", "server.jar");
     return true;
@@ -147,7 +153,9 @@ LaunchTask* ServerInstance::createLaunchTask(AuthSessionPtr, MinecraftTarget::Pt
 }
 QString ServerInstance::getStatusbarDescription()
 {
-    return tr("Server · %1").arg(QFileInfo(jarPath()).fileName());
+    return tr("Server · %1 %2")
+        .arg(m_settings->get("ServerCore").toString(), m_settings->get("ServerMinecraftVersion").toString())
+        .trimmed();
 }
 QStringList ServerInstance::verboseDescription(AuthSessionPtr, MinecraftTarget::Ptr)
 {
