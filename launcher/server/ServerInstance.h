@@ -23,7 +23,7 @@ class ServerInstance : public BaseInstance {
     QString typeName() const override { return tr("Minecraft server"); }
     bool canEdit() const override { return true; }
     bool canExport() const override { return false; }
-    bool canLaunch() const override { return !isRunning() && !m_changingSoftware; }
+    bool canLaunch() const override;
     bool isChangingSoftware() const { return m_changingSoftware; }
     void populateLaunchMenu(QMenu*) override {}
     QStringList verboseDescription(AuthSessionPtr, MinecraftTarget::Ptr) override;
@@ -39,6 +39,7 @@ class ServerInstance : public BaseInstance {
 
    private:
     friend class ServerChangeTask;
+    friend class ServerContentInstallTask;
     void setChangingSoftware(bool changing);
     bool m_changingSoftware = false;
 };

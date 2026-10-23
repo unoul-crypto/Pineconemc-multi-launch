@@ -160,6 +160,8 @@ void ServerChangeTask::install()
     config.set("ServerBuild", m_download ? m_download->build : QString());
     config.set("ServerLoaderVersion", m_download ? m_download->loader : QString());
     config.set("ServerInstallerVersion", m_download ? m_download->installer : QString());
+    for (const auto& key : { "ServerContentMinecraftVersion", "ServerContentModLoader", "ServerContentPluginApi" })
+        config.set(key, QString());
     if (!config.saveFile(configPath)) {
         fail(tr("Could not save the new software settings. The old server is still selected."));
         return;

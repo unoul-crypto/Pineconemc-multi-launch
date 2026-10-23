@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
+#include <QAbstractButton>
+#include <QApplication>
 #include <QComboBox>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QLineEdit>
+#include <QListWidget>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QTemporaryDir>
 #include <QTest>
@@ -12,7 +17,9 @@
 #include "server/PropertiesFile.h"
 #include "server/ServerInstance.h"
 #include "server/ServerLaunchTask.h"
+#include "server/content/ServerContent.h"
 #include "settings/INISettingsObject.h"
+#include "ui/dialogs/ServerContentDialog.h"
 #include "ui/pages/instance/ServerSettingsPage.h"
 #include "ui/widgets/ServerOptionsWidget.h"
 #include "ui/widgets/ServerSoftwareWidget.h"
@@ -20,6 +27,99 @@
 class ServerUITest : public QObject {
     Q_OBJECT
    private slots:
+    void serverContentSearchFiltersVersionsAndClearsStaleSelection()
+    {
+        using namespace ServerContent;
+        QTemporaryDir dir;
+        auto settings = ServerTest::global(dir.filePath("global.cfg"));
+        ServerInstance instance(settings.get(), std::make_unique<INISettingsObject>(dir.filePath("instance.cfg")), dir.path());
+        instance.settings()->set("ServerCore", "Mohist");
+        instance.settings()->set("ServerMinecraftVersion", "1.16.5");
+        const auto profile = target(instance);
+        ServerTest::Network network;
+        const QJsonObject project{ { "id", "project" }, { "title", "Server mod" }, { "server_side", "optional" } };
+        auto hit = project;
+        hit.insert("project_id", "project");
+        hit.insert("versions", QJsonArray{ "1.16.5" });
+        hit.insert("categories", QJsonArray{ "forge" });
+        network.routes.insert(searchUrl(profile, Kind::Mod, "").toString(),
+                              { QJsonDocument(QJsonObject{ { "hits", QJsonArray{ hit } }, { "total_hits", 1 } }).toJson() });
+        network.routes.insert(projectUrl("project").toString(), { QJsonDocument(project).toJson() });
+        const QByteArray jar("PK\003\004UI install fixture");
+        const QJsonObject file{ { "filename", "project.jar" },
+                                { "primary", true },
+                                { "size", jar.size() },
+                                { "url", "https://cdn.modrinth.com/data/project/project.jar" },
+                                { "hashes", QJsonObject{ { "sha512", ServerTest::hash(jar, QCryptographicHash::Sha512) } } } };
+        QJsonObject version{ { "id", "good" },
+                             { "project_id", "project" },
+                             { "name", "Compatible Forge version" },
+                             { "version_number", "1.0" },
+                             { "version_type", "release" },
+                             { "game_versions", QJsonArray{ "1.16.5" } },
+                             { "loaders", QJsonArray{ "forge" } },
+                             { "files", QJsonArray{ file } } };
+        auto wrong = version;
+        wrong.insert("id", "wrong");
+        wrong.insert("loaders", QJsonArray{ "neoforge" });
+        network.routes.insert(versionsUrl(profile, Kind::Mod, "project").toString(),
+                              { QJsonDocument(QJsonArray{ wrong, version }).toJson() });
+        network.routes.insert(versionUrl("good").toString(), { QJsonDocument(version).toJson() });
+        network.routes.insert("https://cdn.modrinth.com/data/project/project.jar", { jar });
+        ServerContentDialog dialog(&instance, &network);
+        QCOMPARE(dialog.findChild<QComboBox*>("serverContentKind")->count(), 2);
+        QVERIFY(!dialog.findChild<QComboBox*>("contentPluginApi")->isEnabled());
+        dialog.findChild<QPushButton*>("serverContentSearch")->click();
+        auto* results = dialog.findChild<QListWidget*>("serverContentResults");
+        QTRY_COMPARE(results->count(), 1);
+        results->setCurrentRow(0);
+        auto* versions = dialog.findChild<QComboBox*>("serverContentVersion");
+        QTRY_COMPARE(versions->count(), 1);
+        QCOMPARE(versions->currentData().toString(), QString("good"));
+        if (!qEnvironmentVariable("PINECONE_CONTENT_PREVIEW").isEmpty()) {
+            dialog.show();
+            QTest::qWait(30);
+            QVERIFY(dialog.grab().save(qEnvironmentVariable("PINECONE_CONTENT_PREVIEW")));
+        }
+        QVERIFY(dialog.findChild<QPushButton*>("serverContentInstall")->isEnabled());
+        QTimer confirm;
+        connect(&confirm, &QTimer::timeout, this, [] {
+            for (auto* widget : QApplication::topLevelWidgets())
+                if (auto* box = qobject_cast<QMessageBox*>(widget))
+                    if (box->standardButtons().testFlag(QMessageBox::Yes))
+                        box->button(QMessageBox::Yes)->click();
+        });
+        confirm.start(10);
+        dialog.findChild<QPushButton*>("serverContentInstall")->click();
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.filePath("server/mods/project.jar")), 10000);
+        QTRY_VERIFY_WITH_TIMEOUT(!instance.isChangingSoftware() && dialog.findChild<QPushButton*>("serverContentInstall")->isEnabled(),
+                                 10000);
+        confirm.stop();
+        dialog.findChild<QComboBox*>("serverContentKind")->setCurrentIndex(1);
+        QCOMPARE(results->count(), 0);
+        QCOMPARE(versions->count(), 0);
+        QVERIFY(!dialog.findChild<QPushButton*>("serverContentInstall")->isEnabled());
+    }
+    void customJarContentProfileCanBeDeclaredWithoutReplacingJar()
+    {
+        QTemporaryDir dir;
+        auto settings = ServerTest::global(dir.filePath("global.cfg"));
+        ServerInstance instance(settings.get(), std::make_unique<INISettingsObject>(dir.filePath("instance.cfg")), dir.path());
+        ServerTest::Network network;
+        ServerContentDialog dialog(&instance, &network);
+        auto* search = dialog.findChild<QPushButton*>("serverContentSearch");
+        QVERIFY(!search->isEnabled());
+        auto* minecraft = dialog.findChild<QLineEdit*>("contentMinecraft");
+        QVERIFY(!minecraft->isReadOnly());
+        QTest::keyClicks(minecraft, "1.16.5");
+        auto* loader = dialog.findChild<QComboBox*>("contentModLoader");
+        loader->setCurrentIndex(loader->findData("forge"));
+        QVERIFY(search->isEnabled());
+        search->click();
+        QCOMPARE(ServerContent::target(instance).minecraft, QString("1.16.5"));
+        QCOMPARE(ServerContent::target(instance).modLoader, QString("forge"));
+        QCOMPARE(instance.settings()->get("ServerCore").toString(), QString("Custom JAR"));
+    }
     void hybridSelectorRestoresInstalledBuildAndLoader()
     {
         using namespace ServerCatalog;

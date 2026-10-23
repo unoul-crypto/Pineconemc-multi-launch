@@ -35,7 +35,7 @@ Running multiple processes against one game directory can cause conflicting writ
 
 Choose **Add Instance → Server**, select **Vanilla**, **Paper**, **Purpur**, **Fabric**, **Mohist**, **Youer**, or **Arclight**, and choose a Minecraft release. Then choose a specific **Software version / build**: a Paper, Purpur, Mohist or Youer build, a supported Fabric loader (0.12 or newer), or an Arclight release with its **Forge / NeoForge / Fabric** variant. Vanilla's server version follows the Minecraft version. Recommended defaults are selected automatically, and the chosen version is pinned instead of silently following the latest build. **Custom JAR** keeps manual JAR installation available.
 
-Hybrid software combines mod and plugin support, subject to each project's compatibility limits. Mohist and Youer versions/builds come from the [official MohistMC API](https://mohistmc.com/mohistmc-api); Arclight uses [official GitHub releases](https://github.com/IzzelAliz/Arclight/releases), excluding drafts and experimental pre-releases. Arclight's build selector explicitly names the mod loader; select the variant that matches your mods. Versions are fetched from the projects rather than hardcoded. This installs the server bootstrap JAR, not mods or plugins.
+Hybrid software combines mod and plugin support, subject to each project's compatibility limits. Mohist and Youer versions/builds come from the [official MohistMC API](https://mohistmc.com/mohistmc-api); Arclight uses [official GitHub releases](https://github.com/IzzelAliz/Arclight/releases), excluding drafts and experimental pre-releases. Arclight's build selector explicitly names the mod loader; select the variant that matches your mods. Versions are fetched from the projects rather than hardcoded. This selector installs the server bootstrap JAR; use **Mods and plugins…** for server content.
 
 Select a compatible Java executable and minimum/maximum memory. Each server is installed in the instance's separate `server` directory; worlds, plugins, mods, configuration, and logs stay there. The first start may download additional libraries through the server's official bootstrap launcher. Installer JARs and servers requiring a separate startup script are not supported yet.
 
@@ -51,6 +51,35 @@ The launcher saves the old JAR and `instance.cfg` under the instance's `server-b
 - While the server is stopped, **Server settings** can change Java, memory, the JAR, startup arguments, MOTD, port, player limit, game mode, difficulty, view distance, spawn protection, PvP, whitelist, and account verification.
 - Unknown `server.properties` entries and comments are preserved. Before changing an existing properties file, the launcher creates a timestamped backup beside it. Changes take effect on the next start.
 - Each server instance can run only once, including across launcher processes using the same server directory.
+
+### Finding and installing server mods and plugins
+
+Open **Server settings → Mods and plugins…**. Search [Modrinth](https://modrinth.com/), or leave the query empty to browse popular projects. Select a project and a compatible version, then **Install selected version…**. Alpha and beta releases are hidden until enabled explicitly. The install preview includes required dependencies and identifies replacements of previously managed projects.
+
+The installed Minecraft version is matched exactly, and mod and plugin files are filtered separately:
+
+| Server software | Mods | Plugins |
+| --- | --- | --- |
+| Vanilla | None | None |
+| Fabric | Fabric | None |
+| Paper | None | Bukkit, Spigot, Paper |
+| Purpur | None | Bukkit, Spigot, Paper, Purpur |
+| Mohist | Forge | Bukkit, Spigot |
+| Youer | NeoForge | Bukkit, Spigot, Paper, Purpur |
+| Arclight | Its selected Forge, NeoForge or Fabric variant | Bukkit, Spigot |
+| Custom JAR | Declared manually | Declared manually |
+
+For **Custom JAR**, enter the actual Minecraft version, mod loader and plugin API before searching. This profile describes the existing JAR without replacing it. Selecting another JAR or changing server software clears this manual declaration. Vanilla cannot install content until you change to software that supports it.
+
+Compatibility uses authors' [Modrinth project and version metadata](https://docs.modrinth.com/api/operations/getprojectversions/). Explicit client-only files, wrong Minecraft versions and wrong loaders are rejected. Hybrid implementations can have additional limitations, and some mods must also be installed on connecting clients. This does not inspect every mod's internal loader/library constraints or guarantee that all installed content works together.
+
+Required Modrinth dependencies are resolved recursively. Exact dependency versions are respected; a compatible version of an already managed dependency is retained when possible. Optional and embedded dependencies are not installed separately. Conflicting version requirements, declared incompatibilities with indexed projects, unavailable dependencies and required files outside Modrinth stop the install before content changes. Dependency declarations are retained with installed projects, so a later library replacement cannot silently break an indexed project's exact dependency requirement. Manually added projects are listed as files but are not automatically identified by project ID.
+
+Installation requires a stopped server and holds the same folder lock as server launch and software changes. All selected JARs are staged, checked against SHA-512 and checked as archives before installation. Hashing, file replacement and backup work run outside the UI thread. Cancellation during download leaves the current files in place. During the short file-commit phase, cancellation and closing the dialog wait until the transaction finishes.
+
+The launcher records managed projects in `server-content.json` and backs up replaced managed JARs and the old index under `server-content-backups/<timestamp>` inside the instance. Updates remove the previous managed filename to avoid loading two versions. Different manually installed files with colliding names and externally modified managed files are not overwritten. Unknown files, plugin/mod data directories, worlds, `server.properties`, Java and memory settings are preserved. This content backup does not replace a full server backup.
+
+An interrupted commit leaves a recovery journal and blocks server launch. Reopen **Mods and plugins… → Recover interrupted installation** to restore the previous files and index. Recovery stops if a file was edited after the interruption, preserving that edit for manual resolution. The **Installed files** tab lists managed and manual JARs and can open the server's `mods` and `plugins` folders. Existing content is never updated merely by opening the dialog.
 
 ## Installation
 

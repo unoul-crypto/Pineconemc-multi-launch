@@ -32,6 +32,16 @@ set(CORE_SOURCES
     server/ServerCreationTask.cpp
     server/ServerCatalog.h
     server/ServerCatalog.cpp
+    server/content/ServerContent.h
+    server/content/ServerContent.cpp
+    server/content/ServerContentTask.h
+    server/content/ServerContentTask.cpp
+    server/content/ServerContentStore.h
+    server/content/ServerContentStore.cpp
+    server/content/ServerContentInstallTask.h
+    server/content/ServerContentInstallTask.cpp
+    ui/dialogs/ServerContentDialog.h
+    ui/dialogs/ServerContentDialog.cpp
     server/ServerHybridCatalog.h
     server/ServerHybridCatalog.cpp
     server/ServerCatalogTask.h
