@@ -32,6 +32,8 @@ set(CORE_SOURCES
     server/ServerCreationTask.cpp
     server/ServerCatalog.h
     server/ServerCatalog.cpp
+    server/ServerHybridCatalog.h
+    server/ServerHybridCatalog.cpp
     server/ServerCatalogTask.h
     server/ServerCatalogTask.cpp
     server/ServerChangeTask.h

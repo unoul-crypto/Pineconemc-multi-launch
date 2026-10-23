@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #pragma once
+#include <QJsonArray>
 #include <QPointer>
 #include <functional>
 #include "ServerCatalog.h"
@@ -27,6 +28,10 @@ class ServerCatalogTask : public Task {
 
    private:
     void json(const QUrl& url, std::function<void(const QJsonDocument&)> callback);
+    void arclightPage(int page, QJsonArray releases);
+    void parseArclight(const QJsonDocument& releases);
+    void hybridBuilds(const ServerCatalog::Version& version, std::function<void(const QJsonDocument&)> callback, bool refresh = false);
+    void filterHybridVersions(QList<ServerCatalog::Version> pending);
     QNetworkAccessManager* m_network;
     ServerCatalog::Core m_core;
     Operation m_operation;

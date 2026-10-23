@@ -16,8 +16,7 @@ ServerSoftwareWidget::ServerSoftwareWidget(QNetworkAccessManager* network, QWidg
     auto* form = new QFormLayout();
     m_core = new QComboBox(this);
     m_core->setObjectName("serverSoftware");
-    for (const auto value : { ServerCatalog::Core::Vanilla, ServerCatalog::Core::Paper, ServerCatalog::Core::Purpur,
-                              ServerCatalog::Core::Fabric, ServerCatalog::Core::Custom })
+    for (const auto value : ServerCatalog::cores())
         m_core->addItem(ServerCatalog::name(value), static_cast<int>(value));
     form->addRow(tr("Server software:"), m_core);
     auto* row = new QWidget(this);
@@ -202,6 +201,9 @@ void ServerSoftwareWidget::resolve()
             info += tr(" · %1 MiB").arg(download.size / (1024.0 * 1024.0), 0, 'f', 1);
         if (core() == ServerCatalog::Core::Fabric && !m_builds.value(m_build->currentIndex()).recommended)
             info += tr("\nThis loader is not currently recommended by Fabric. Check compatibility with your mods.");
+        if (core() == ServerCatalog::Core::Arclight)
+            info +=
+                tr("\nThe software version includes its mod loader: Forge, NeoForge or Fabric. Choose the variant required by your mods.");
         info += tr("\nChoose compatible Java. The first start may download additional libraries.");
         m_status->setText(info);
         emit selectionChanged();

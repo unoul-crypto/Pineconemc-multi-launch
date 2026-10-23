@@ -2,6 +2,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QLineEdit>
 #include <QSpinBox>
@@ -19,6 +20,44 @@
 class ServerUITest : public QObject {
     Q_OBJECT
    private slots:
+    void hybridSelectorRestoresInstalledBuildAndLoader()
+    {
+        using namespace ServerCatalog;
+        for (const auto core : { Core::Mohist, Core::Youer, Core::Arclight }) {
+            ServerTest::Network network;
+            const ServerCatalog::Version version{ "1.21.1", {} };
+            QString installed = "12";
+            if (core == Core::Arclight) {
+                QJsonArray assets;
+                for (const auto& loader : { QString("neoforge"), QString("forge"), QString("fabric") }) {
+                    const auto filename = "arclight-" + loader + "-1.21.1-1.0.1.jar";
+                    assets.append(QJsonObject{
+                        { "name", filename },
+                        { "size", 123 },
+                        { "browser_download_url", "https://github.com/IzzelAliz/Arclight/releases/download/test/" + filename } });
+                }
+                const QJsonDocument releases(QJsonArray{ QJsonObject{ { "assets", assets } } });
+                network.routes.insert(versionsUrl(core).toString(), { releases.toJson() });
+                installed = "1.0.1 (Forge)";
+            } else {
+                network.routes.insert(versionsUrl(core).toString(), { "[{\"name\":\"1.21.1\"}]" });
+                const QJsonObject old{ { "id", 12 }, { "file_sha256", QString(64, 'a') } };
+                const QJsonDocument builds(QJsonArray{ QJsonObject{ { "id", 920 } }, old });
+                network.routes.insert(buildsUrl(core, version).toString(), { builds.toJson() });
+                network.routes.insert(metadataUrl(core, version, installed).toString(), { QJsonDocument(old).toJson() });
+            }
+            ServerSoftwareWidget widget(&network);
+            auto* selector = widget.findChild<QComboBox*>("serverSoftware");
+            QCOMPARE(selector->count(), cores().size());
+            widget.setSelection(core, version.id, installed);
+            widget.setActive(true);
+            QTRY_VERIFY(widget.download().has_value());
+            QCOMPARE(widget.download()->core, core);
+            QCOMPARE(widget.download()->build, installed);
+            if (core == Core::Arclight)
+                QCOMPARE(widget.download()->loader, QString("Forge"));
+        }
+    }
     void softwareSelectorKeepsInstalledBuildAndRejectsStaleResults()
     {
         using namespace ServerCatalog;

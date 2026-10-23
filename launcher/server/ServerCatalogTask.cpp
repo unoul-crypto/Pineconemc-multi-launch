@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "ServerCatalogTask.h"
+#include <QDateTime>
+#include <QNetworkAccessManager>
+#include <QUrlQuery>
 #include "ServerRequest.h"
+
+namespace {
+constexpr auto arclightCache = "_pineconeArclightCatalog";
+constexpr auto arclightExpiry = "_pineconeArclightCatalogExpiry";
+}  // namespace
 
 ServerCatalogTask::ServerCatalogTask(QNetworkAccessManager* network,
                                      ServerCatalog::Core core,
@@ -47,13 +55,36 @@ void ServerCatalogTask::executeTask()
         emitFailed(tr("Custom servers use a local JAR."));
         return;
     }
+    if (m_core == ServerCatalog::Core::Arclight) {
+        if (!m_network) {
+            emitFailed(tr("Network access is unavailable."));
+            return;
+        }
+        // Share the complete release list across selection stages, scoped to this network manager.
+        // A new Versions request (including Reload) always refreshes it.
+        if (m_operation != Operation::Versions && m_network->property(arclightExpiry).toLongLong() > QDateTime::currentMSecsSinceEpoch()) {
+            const auto cached = QJsonDocument::fromJson(m_network->property(arclightCache).toByteArray());
+            if (cached.isArray()) {
+                parseArclight(cached);
+                return;
+            }
+        }
+        arclightPage(1, {});
+        return;
+    }
     if (m_operation == Operation::Versions) {
         json(ServerCatalog::versionsUrl(m_core), [this](const QJsonDocument& document) {
             QString error;
-            if (ServerCatalog::parseVersions(m_core, document, &m_versions, &error))
-                emitSucceeded();
-            else
+            if (!ServerCatalog::parseVersions(m_core, document, &m_versions, &error)) {
                 emitFailed(error);
+                return;
+            }
+            if (m_core == ServerCatalog::Core::Mohist || m_core == ServerCatalog::Core::Youer) {
+                auto pending = m_versions;
+                m_versions.clear();
+                filterHybridVersions(std::move(pending));
+            } else
+                emitSucceeded();
         });
         return;
     }
@@ -67,6 +98,8 @@ void ServerCatalogTask::executeTask()
         };
         if (m_core == ServerCatalog::Core::Vanilla)
             parse({});
+        else if (m_core == ServerCatalog::Core::Mohist || m_core == ServerCatalog::Core::Youer)
+            hybridBuilds(m_version, parse);
         else
             json(ServerCatalog::buildsUrl(m_core, m_version), parse);
         return;
@@ -107,6 +140,91 @@ void ServerCatalogTask::executeTask()
                 emitFailed(tr("No supported Fabric server launcher is available."));
         });
     });
+}
+void ServerCatalogTask::hybridBuilds(const ServerCatalog::Version& version,
+                                     std::function<void(const QJsonDocument&)> callback,
+                                     bool refresh)
+{
+    const auto url = ServerCatalog::buildsUrl(m_core, version);
+    const auto key = url.toString();
+    constexpr auto cacheKey = "_pineconeHybridBuildLists";
+    const auto entry = m_network ? m_network->property(cacheKey).toMap().value(key).toMap() : QVariantMap();
+    if (!refresh && entry.value("expires").toLongLong() > QDateTime::currentMSecsSinceEpoch()) {
+        callback(QJsonDocument::fromJson(entry.value("json").toByteArray()));
+        return;
+    }
+    json(url, [this, key, callback = std::move(callback)](const QJsonDocument& document) {
+        if (!document.isArray()) {
+            emitFailed(tr("The hybrid server service returned an invalid build list."));
+            return;
+        }
+        auto cache = m_network->property("_pineconeHybridBuildLists").toMap();
+        cache.insert(key, QVariantMap{ { "json", document.toJson(QJsonDocument::Compact) },
+                                       { "expires", QDateTime::currentMSecsSinceEpoch() + 5 * 60 * 1000 } });
+        m_network->setProperty("_pineconeHybridBuildLists", cache);
+        callback(document);
+    });
+}
+void ServerCatalogTask::filterHybridVersions(QList<ServerCatalog::Version> pending)
+{
+    if (pending.isEmpty()) {
+        if (m_versions.isEmpty())
+            emitFailed(tr("No downloadable builds are available for this server software."));
+        else
+            emitSucceeded();
+        return;
+    }
+    const auto version = pending.takeFirst();
+    hybridBuilds(
+        version,
+        [this, version, pending = std::move(pending)](const QJsonDocument& document) mutable {
+            QList<ServerCatalog::Build> builds;
+            QString error;
+            if (ServerCatalog::parseBuilds(m_core, version, document, &builds, &error))
+                m_versions.append(version);
+            filterHybridVersions(std::move(pending));
+        },
+        true);
+}
+void ServerCatalogTask::arclightPage(int page, QJsonArray releases)
+{
+    if (page > 20) {
+        emitFailed(tr("The Arclight release list is too large. Please retry later."));
+        return;
+    }
+    auto url = ServerCatalog::versionsUrl(m_core);
+    QUrlQuery query(url);
+    query.removeAllQueryItems("page");
+    query.addQueryItem("page", QString::number(page));
+    url.setQuery(query);
+    json(url, [this, page, releases = std::move(releases)](const QJsonDocument& document) mutable {
+        if (!document.isArray()) {
+            emitFailed(tr("GitHub returned an invalid Arclight release list."));
+            return;
+        }
+        for (const auto& release : document.array())
+            releases.append(release);
+        if (document.array().size() == 100) {
+            arclightPage(page + 1, std::move(releases));
+            return;
+        }
+        const QJsonDocument catalog(releases);
+        m_network->setProperty(arclightCache, catalog.toJson(QJsonDocument::Compact));
+        m_network->setProperty(arclightExpiry, QDateTime::currentMSecsSinceEpoch() + 5 * 60 * 1000);
+        parseArclight(catalog);
+    });
+}
+void ServerCatalogTask::parseArclight(const QJsonDocument& document)
+{
+    QString error;
+    const bool success = m_operation == Operation::Versions ? ServerCatalog::parseVersions(m_core, document, &m_versions, &error)
+                         : m_operation == Operation::Builds
+                             ? ServerCatalog::parseBuilds(m_core, m_version, document, &m_builds, &error)
+                             : ServerCatalog::parseDownload(m_core, m_version, document, &m_download, &error, m_build);
+    if (success)
+        emitSucceeded();
+    else
+        emitFailed(error);
 }
 bool ServerCatalogTask::abort()
 {

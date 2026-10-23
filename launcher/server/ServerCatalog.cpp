@@ -6,6 +6,7 @@
 #include <QRegularExpression>
 #include <QVersionNumber>
 #include <algorithm>
+#include "ServerHybridCatalog.h"
 
 namespace ServerCatalog {
 namespace {
@@ -39,10 +40,20 @@ QString name(Core core)
             return "Purpur";
         case Core::Fabric:
             return "Fabric";
+        case Core::Mohist:
+            return "Mohist";
+        case Core::Youer:
+            return "Youer";
+        case Core::Arclight:
+            return "Arclight";
         case Core::Custom:
             return QObject::tr("Custom JAR");
     }
     return {};
+}
+QList<Core> cores()
+{
+    return { Core::Vanilla, Core::Paper, Core::Purpur, Core::Fabric, Core::Mohist, Core::Youer, Core::Arclight, Core::Custom };
 }
 QByteArray userAgent()
 {
@@ -50,6 +61,8 @@ QByteArray userAgent()
 }
 QUrl versionsUrl(Core core)
 {
+    if (ServerHybridCatalog::handles(core))
+        return ServerHybridCatalog::versionsUrl(core);
     switch (core) {
         case Core::Vanilla:
             return QUrl("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
@@ -60,6 +73,7 @@ QUrl versionsUrl(Core core)
         case Core::Fabric:
             return QUrl("https://meta.fabricmc.net/v2/versions/game");
         case Core::Custom:
+        default:
             return {};
     }
     return {};
@@ -72,6 +86,8 @@ QUrl buildsUrl(Core core, const Version& version)
 }
 QUrl metadataUrl(Core core, const Version& version, const QString& build)
 {
+    if (ServerHybridCatalog::handles(core))
+        return ServerHybridCatalog::metadataUrl(core, version, build);
     switch (core) {
         case Core::Vanilla:
             return version.metadataUrl;
@@ -83,6 +99,7 @@ QUrl metadataUrl(Core core, const Version& version, const QString& build)
         case Core::Fabric:
             return QUrl("https://meta.fabricmc.net/v2/versions/loader/" + path(version.id));
         case Core::Custom:
+        default:
             return {};
     }
     return {};
@@ -99,7 +116,10 @@ bool parseVersions(Core core, const QJsonDocument& json, QList<Version>* result,
                 return;
         result->append({ id, url });
     };
-    if (core == Core::Vanilla) {
+    if (ServerHybridCatalog::handles(core)) {
+        for (const auto& version : ServerHybridCatalog::versions(core, json))
+            add(version.id, version.metadataUrl);
+    } else if (core == Core::Vanilla) {
         for (const auto& item : object.value("versions").toArray()) {
             const auto version = item.toObject();
             const QUrl url(version.value("url").toString());
@@ -133,6 +153,11 @@ bool parseVersions(Core core, const QJsonDocument& json, QList<Version>* result,
 bool parseBuilds(Core core, const Version& version, const QJsonDocument& json, QList<Build>* result, QString* error)
 {
     result->clear();
+    if (ServerHybridCatalog::handles(core)) {
+        *result = ServerHybridCatalog::builds(core, version, json);
+        if (!result->isEmpty())
+            return true;
+    }
     if (core == Core::Vanilla)
         result->append({ version.id, true });
     else if (core == Core::Paper) {
@@ -172,6 +197,16 @@ bool validDownload(const Download& download)
         return false;
     if (download.core == Core::Fabric)
         return !download.loader.isEmpty() && !download.installer.isEmpty();
+    if (ServerHybridCatalog::handles(download.core)) {
+        if (download.build.isEmpty() || download.hashAlgorithm != QCryptographicHash::Sha256)
+            return false;
+        if (download.core == Core::Arclight)
+            return download.size > 0 && download.url.host() == "github.com" &&
+                   download.url.path().startsWith("/IzzelAliz/Arclight/releases/download/") && download.url.path().endsWith(".jar") &&
+                   (download.loader == "Forge" || download.loader == "NeoForge" || download.loader == "Fabric") &&
+                   (download.checksum.isEmpty() || hex(download.checksum, 64));
+        return hex(download.checksum, 64);
+    }
     const auto length = download.core == Core::Vanilla ? 40 : download.core == Core::Paper ? 64 : 32;
     const auto algorithm = download.core == Core::Vanilla ? QCryptographicHash::Sha1
                            : download.core == Core::Paper ? QCryptographicHash::Sha256
@@ -194,7 +229,9 @@ bool parseDownload(Core core,
                      .arg(object.value("build").toString());
         return false;
     }
-    if (core == Core::Vanilla && object.value("id").toString() == version.id) {
+    if (ServerHybridCatalog::handles(core)) {
+        download = ServerHybridCatalog::download(core, version, json, requestedBuild);
+    } else if (core == Core::Vanilla && object.value("id").toString() == version.id) {
         const auto server = object.value("downloads").toObject().value("server").toObject();
         download.url = QUrl(server.value("url").toString());
         download.checksum = server.value("sha1").toString();

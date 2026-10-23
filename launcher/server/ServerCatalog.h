@@ -6,7 +6,7 @@
 #include <QUrl>
 
 namespace ServerCatalog {
-enum class Core { Vanilla, Paper, Purpur, Fabric, Custom };
+enum class Core { Vanilla, Paper, Purpur, Fabric, Custom, Mohist, Youer, Arclight };
 struct Version {
     QString id;
     QUrl metadataUrl;
@@ -27,6 +27,7 @@ struct Download {
     qint64 size = -1;
 };
 QString name(Core core);
+QList<Core> cores();
 QByteArray userAgent();
 QUrl versionsUrl(Core core);
 QUrl buildsUrl(Core core, const Version& version);

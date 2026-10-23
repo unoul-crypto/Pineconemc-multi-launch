@@ -30,8 +30,7 @@ ServerSoftwareDialog::ServerSoftwareDialog(ServerInstance* instance, QWidget* pa
     m_software = new ServerSoftwareWidget(APPLICATION->network(), this);
     auto* settings = instance->settings();
     auto core = ServerCatalog::Core::Custom;
-    for (const auto value :
-         { ServerCatalog::Core::Vanilla, ServerCatalog::Core::Paper, ServerCatalog::Core::Purpur, ServerCatalog::Core::Fabric })
+    for (const auto value : ServerCatalog::cores())
         if (settings->get("ServerCore").toString() == ServerCatalog::name(value))
             core = value;
     m_software->setSelection(core, settings->get("ServerMinecraftVersion").toString(),
