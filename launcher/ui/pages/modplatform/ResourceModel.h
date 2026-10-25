@@ -18,6 +18,7 @@
 
 class NetJob;
 class ResourceAPI;
+class ProjectIconCache;
 
 namespace ModPlatform {
 struct IndexedPack;
@@ -124,9 +125,7 @@ class ResourceModel : public QAbstractListModel {
     // Job for fetching versions and extra info on existing entries
     ConcurrentTask m_current_info_job;
 
-    shared_qobject_ptr<NetJob> m_current_icon_job;
-    QSet<QUrl> m_currently_running_icon_actions;
-    QSet<QUrl> m_failed_icon_actions;
+    ProjectIconCache* m_icons = nullptr;
 
     QList<ModPlatform::IndexedPack::Ptr> m_packs;
     QList<DownloadTaskPtr> m_selected;

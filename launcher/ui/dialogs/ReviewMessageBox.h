@@ -20,10 +20,13 @@ class ReviewMessageBox : public QDialog {
         QStringList required_by;
         QString version_type;
         bool enabled = true;
+        QString id;
+        bool locked = false;
     };
 
     void appendResource(ResourceInformation&& info);
     auto deselectedResources() -> QStringList;
+    QStringList deselectedResourceIds() const;
 
     void retranslateUi(QString resources_name);
 

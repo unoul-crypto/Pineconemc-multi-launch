@@ -92,6 +92,8 @@ class ModFilterWidget : public QTabWidget {
     };
 
     static std::unique_ptr<ModFilterWidget> create(MinecraftInstance* instance, bool extended);
+    static std::unique_ptr<ModFilterWidget> createServer(const QString& minecraft);
+    void setServerMinecraft(const QString& minecraft);
     virtual ~ModFilterWidget();
 
     auto getFilter() -> std::shared_ptr<Filter>;
@@ -104,7 +106,7 @@ class ModFilterWidget : public QTabWidget {
     void setCategories(const QList<ModPlatform::Category>&);
 
    private:
-    ModFilterWidget(MinecraftInstance* instance, bool extendedSupport);
+    ModFilterWidget(MinecraftInstance* instance, bool extendedSupport, bool server = false);
 
     void loadVersionList();
     void prepareBasicFilter();

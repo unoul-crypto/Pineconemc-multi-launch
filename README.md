@@ -35,7 +35,7 @@ Running multiple processes against one game directory can cause conflicting writ
 
 Choose **Add Instance → Server**, select **Vanilla**, **Paper**, **Purpur**, **Fabric**, **Mohist**, **Youer**, or **Arclight**, and choose a Minecraft release. Then choose a specific **Software version / build**: a Paper, Purpur, Mohist or Youer build, a supported Fabric loader (0.12 or newer), or an Arclight release with its **Forge / NeoForge / Fabric** variant. Vanilla's server version follows the Minecraft version. Recommended defaults are selected automatically, and the chosen version is pinned instead of silently following the latest build. **Custom JAR** keeps manual JAR installation available.
 
-Hybrid software combines mod and plugin support, subject to each project's compatibility limits. Mohist and Youer versions/builds come from the [official MohistMC API](https://mohistmc.com/mohistmc-api); Arclight uses [official GitHub releases](https://github.com/IzzelAliz/Arclight/releases), excluding drafts and experimental pre-releases. Arclight's build selector explicitly names the mod loader; select the variant that matches your mods. Versions are fetched from the projects rather than hardcoded. This selector installs the server bootstrap JAR; use **Mods and plugins…** for server content.
+Hybrid software combines mod and plugin support, subject to each project's compatibility limits. Mohist and Youer versions/builds come from the [official MohistMC API](https://mohistmc.com/mohistmc-api); Arclight uses [official GitHub releases](https://github.com/IzzelAliz/Arclight/releases), excluding drafts and experimental pre-releases. Arclight's build selector explicitly names the mod loader; select the variant that matches your mods. Versions are fetched from the projects rather than hardcoded. This selector installs the server bootstrap JAR; use **Mods** and **Plugins** pages for server content.
 
 Select a compatible Java executable and minimum/maximum memory. Each server is installed in the instance's separate `server` directory; worlds, plugins, mods, configuration, and logs stay there. The first start may download additional libraries through the server's official bootstrap launcher. Installer JARs and servers requiring a separate startup script are not supported yet.
 
@@ -54,7 +54,13 @@ The launcher saves the old JAR and `instance.cfg` under the instance's `server-b
 
 ### Finding and installing server mods and plugins
 
-Open **Server settings → Mods and plugins…**. Search [Modrinth](https://modrinth.com/), or leave the query empty to browse popular projects. Select a project and a compatible version, then **Install selected version…**. Alpha and beta releases are hidden until enabled explicitly. The install preview includes required dependencies and identifies replacements of previously managed projects.
+Open the server's **Mods** or **Plugins** page in its instance window. Both pages are directly accessible beside Server settings and the console. They share the client's filter controls, sorting methods, project-row delegate, Markdown description renderer, icon cache and download review dialog.
+
+Search [Modrinth](https://modrinth.com/), or leave the query empty to browse popular projects. Sort by relevance, downloads, follows, newest or last updated. **Filter options** provides categories, open-source-only projects, hidden installed projects and release/beta/alpha selection. Minecraft and server-side compatibility stay locked to the server profile; changing display filters does not make incompatible downloads available.
+
+The list accumulates batches of 50 projects. Scroll to the bottom or use **Load more** to continue; there is no 20-project total limit. Project icons, including WebP images, are loaded asynchronously and cached. Selecting a project fetches its full Markdown description and images rather than only its short search summary.
+
+Choose a project version and **Select version for download**, or toggle its checkbox. Continue searching, changing filters and loading more results: your selection stays in **Selected (N)**. Choose **Review and download (N)…** to resolve dependencies and confirm the complete list. No mod/plugin JAR downloads begin merely by selecting projects. Required dependencies cannot be deselected independently. Removing a selected root in review recomputes and rechecks its dependency plan before another confirmation. Cancelling review keeps the selection. A changed server compatibility profile clears stale selections.
 
 The installed Minecraft version is matched exactly, and mod and plugin files are filtered separately:
 
@@ -79,7 +85,7 @@ Installation requires a stopped server and holds the same folder lock as server 
 
 The launcher records managed projects in `server-content.json` and backs up replaced managed JARs and the old index under `server-content-backups/<timestamp>` inside the instance. Updates remove the previous managed filename to avoid loading two versions. Different manually installed files with colliding names and externally modified managed files are not overwritten. Unknown files, plugin/mod data directories, worlds, `server.properties`, Java and memory settings are preserved. This content backup does not replace a full server backup.
 
-An interrupted commit leaves a recovery journal and blocks server launch. Reopen **Mods and plugins… → Recover interrupted installation** to restore the previous files and index. Recovery stops if a file was edited after the interruption, preserving that edit for manual resolution. The **Installed files** tab lists managed and manual JARs and can open the server's `mods` and `plugins` folders. Existing content is never updated merely by opening the dialog.
+An interrupted commit leaves a recovery journal and blocks server launch. Reopen **Mods** or **Plugins → Recover interrupted installation** to restore the previous files and index. Recovery stops if a file was edited after the interruption, preserving that edit for manual resolution. The **Installed files** tab lists managed and manual JARs and can open the server's `mods` and `plugins` folders. Existing content is never updated merely by opening the dialog.
 
 ## Installation
 
@@ -128,7 +134,7 @@ Windows ZIP releases support both portable data and data stored in AppData. Upda
 
 If you want to build PineconeMC yourself, check the [build instructions](https://prismlauncher.org/wiki/development/build-instructions).
 
-For a Windows MinGW release of this fork, use a checkout path without spaces, Qt 6 including **Network Authorization**, CMake, Ninja, a matching MinGW compiler, vcpkg, and JDK 8 or 17. Put the Qt, MinGW, and JDK binaries on `PATH`, and set `QT_ROOT` and `VCPKG_ROOT` to their installation directories. Supply the vcpkg toolchain on the **first** configure so static libarchive dependencies are linked correctly:
+For a Windows MinGW release of this fork, use a checkout path without spaces, Qt 6 including **Network Authorization** and **Image Formats (WebP)**, CMake, Ninja, a matching MinGW compiler, vcpkg, and JDK 8 or 17. Put the Qt, MinGW, and JDK binaries on `PATH`, and set `QT_ROOT` and `VCPKG_ROOT` to their installation directories. Supply the vcpkg toolchain on the **first** configure so static libarchive dependencies are linked correctly:
 
 ```powershell
 cmake --preset windows_mingw "-DCMAKE_PREFIX_PATH=$env:QT_ROOT" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-mingw-static-release -DBUILD_TESTING=ON -DLauncher_BUILD_PLATFORM=multi-launch -DLauncher_BUILD_ARTIFACT=Windows-MinGW-w64-Qt6
@@ -165,3 +171,5 @@ If you do not agree with these terms and conditions, then remove the associated 
 All launcher code is available under the GPL-3.0-only license.
 
 The logo and related assets are under the CC BY-SA 4.0 license.
+
+Windows packages must include the matching Qt Image Formats WebP plugin (`imageformats/qwebp.dll`). `windeployqt` copies it from the SDK; the browser integration test checks that WebP decoding is available. The plugin can also be built from the matching official Qt Image Formats source archive with Qt's CMake build, enabling `QT_FEATURE_webp` and the bundled codec. Include the Qt and bundled libwebp license notices with the package.

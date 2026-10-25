@@ -17,6 +17,9 @@ class ServerContentTask : public Task {
         int offset = 0;
         bool prereleases = false;
         QList<ServerContent::Installed> installed;
+        ServerContent::SearchOptions search;
+        QStringList releases;
+        QList<ServerContent::Selection> selections;
     };
     ServerContentTask(QNetworkAccessManager* network, ServerContent::Target target, ServerContent::Kind kind, Query query);
     bool canAbort() const override { return true; }
@@ -25,6 +28,9 @@ class ServerContentTask : public Task {
     const QList<ServerContent::AddonVersion>& versions() const { return m_versions; }
     const QList<ServerContent::AddonVersion>& plan() const { return m_plan; }
     int total() const { return m_total; }
+    int nextOffset() const { return m_nextOffset; }
+   signals:
+    void projectInfoReady(const QJsonObject& project);
 
    protected:
     void executeTask() override;
@@ -43,5 +49,6 @@ class ServerContentTask : public Task {
     QList<ServerContent::AddonVersion> m_versions, m_plan;
     QList<ServerContent::Dependency> m_pending;
     int m_total = 0;
+    int m_nextOffset = 0;
     int m_dependencyCount = 0;
 };

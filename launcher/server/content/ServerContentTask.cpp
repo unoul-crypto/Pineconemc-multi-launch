@@ -44,13 +44,31 @@ void ServerContentTask::executeTask()
     }
     if (m_query.operation == Operation::Search) {
         setStatus(tr("Searching Modrinth…"));
-        json(searchUrl(m_target, m_kind, m_query.text, m_query.offset), [this](const auto& document) {
+        json(searchUrl(m_target, m_kind, m_query.text, m_query.offset, m_query.search), [this](const auto& document) {
             QString error;
-            if (parseSearch(m_target, m_kind, document, &m_projects, &m_total, &error))
+            m_nextOffset = m_query.offset + document.object().value("hits").toArray().size();
+            if (parseSearch(m_target, m_kind, document, &m_projects, &m_total, &error)) {
+                m_projects.removeIf([this](const auto& project) { return m_query.search.excludedProjects.contains(project.id); });
                 emitSucceeded();
-            else
+            } else
                 emitFailed(error);
         });
+        return;
+    }
+    if (m_query.operation == Operation::Resolve && !m_query.selections.isEmpty()) {
+        if (m_query.selections.size() > 128) {
+            emitFailed(tr("Select at most 128 projects per installation."));
+            return;
+        }
+        for (const auto& selection : m_query.selections) {
+            if (!validId(selection.projectId) || !validId(selection.versionId)) {
+                emitFailed(tr("Invalid selected project or version ID."));
+                return;
+            }
+            m_pending.append({ selection.projectId, selection.versionId, "required" });
+        }
+        setStatus(tr("Resolving required dependencies…"));
+        nextDependency();
         return;
     }
     if (!validId(m_query.projectId) || (m_query.operation == Operation::Resolve && !validId(m_query.versionId))) {
@@ -60,6 +78,8 @@ void ServerContentTask::executeTask()
     if (m_query.operation == Operation::Versions) {
         setStatus(tr("Loading compatible versions…"));
         json(projectUrl(m_query.projectId), [this](const auto& project) {
+            if (project.object().value("id") == m_query.projectId)
+                emit projectInfoReady(project.object());
             if (project.object().value("id") != m_query.projectId || !serverProject(project.object())) {
                 emitFailed(tr("This project does not declare dedicated server support."));
                 return;
@@ -69,8 +89,9 @@ void ServerContentTask::executeTask()
                     emitFailed(tr("Modrinth returned an invalid version list."));
                     return;
                 }
-                for (const auto& version : parseVersions(m_target, m_kind, document, m_query.prereleases))
-                    if (version.projectId == m_query.projectId)
+                for (const auto& version : parseVersions(m_target, m_kind, document, m_query.prereleases || !m_query.releases.isEmpty()))
+                    if (version.projectId == m_query.projectId &&
+                        (m_query.releases.isEmpty() || m_query.releases.contains(version.releaseType)))
                         m_versions.append(version);
                 if (m_versions.isEmpty())
                     emitFailed(tr("No compatible server JAR is available. Try another project or enable pre-release versions."));

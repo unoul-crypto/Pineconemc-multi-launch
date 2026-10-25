@@ -86,6 +86,46 @@ void setup(ServerInstance& instance)
 class ServerContentTest : public QObject {
     Q_OBJECT
    private slots:
+    void batchSelectionsShareDependenciesAndRespectExplicitPins()
+    {
+        Network network;
+        route(network, metadata("a", "a1", "fabric", { dependency("dep", "d1") }));
+        route(network, metadata("b", "b1", "fabric", { dependency("dep", "d1") }));
+        route(network, metadata("dep", "d1"));
+        route(network, metadata("dep", "d2"));
+        ServerContentTask::Query query;
+        query.operation = ServerContentTask::Operation::Resolve;
+        query.selections = { { "a", "a1" }, { "b", "b1" } };
+        ServerContentTask both(&network, fabric, Kind::Mod, query);
+        both.start();
+        QTRY_VERIFY(both.isFinished());
+        QVERIFY2(both.wasSuccessful(), qPrintable(both.failReason()));
+        QCOMPARE(both.plan().size(), 3);
+        QCOMPARE(std::count_if(both.plan().begin(), both.plan().end(), [](const auto& version) { return version.projectId == "dep"; }), 1);
+        query.selections = { { "a", "a1" }, { "dep", "d2" } };
+        ServerContentTask conflict(&network, fabric, Kind::Mod, query);
+        conflict.start();
+        QTRY_VERIFY(conflict.isFinished());
+        QVERIFY(!conflict.wasSuccessful());
+    }
+    void sortAndFilterFacetsKeepServerCompatibility()
+    {
+        SearchOptions options;
+        options.sort = "updated";
+        options.categories = { "utility", "optimization" };
+        options.openSource = true;
+        options.excludedProjects = { "oldProject" };
+        options.limit = 100;
+        const QUrlQuery query(searchUrl(fabric, Kind::Mod, "hello", 100, options));
+        QCOMPARE(query.queryItemValue("index"), QString("updated"));
+        QCOMPARE(query.queryItemValue("limit"), QString("100"));
+        const auto facets = QJsonDocument::fromJson(query.queryItemValue("facets", QUrl::FullyDecoded).toUtf8()).array();
+        QVERIFY(facets.contains(QJsonArray{ "versions:1.20.1" }));
+        QVERIFY(facets.contains(QJsonArray{ "categories:fabric" }));
+        QVERIFY(facets.contains(QJsonArray{ "categories:utility", "categories:optimization" }));
+        QVERIFY(facets.contains(QJsonArray{ "open_source:true" }));
+        QVERIFY(facets.contains(QJsonArray{ "project_id!=oldProject" }));
+    }
     void installedConstraintsProtectPinsAndReverseIncompatibilities()
     {
         Installed root{ "root", "r1", "Root", "root.jar", QString(128, 'a'), Kind::Mod };

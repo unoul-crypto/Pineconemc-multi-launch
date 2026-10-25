@@ -113,20 +113,32 @@ bool serverProject(const QJsonObject& project)
     const auto environments = environment.toArray();
     return std::any_of(environments.begin(), environments.end(), [](const auto& value) { return serverEnvironment(value.toString()); });
 }
-QUrl searchUrl(const Target& target, Kind kind, const QString& text, int offset)
+QUrl searchUrl(const Target& target, Kind kind, const QString& text, int offset, const SearchOptions& options)
 {
     QUrl url("https://api.modrinth.com/v2/search");
     QJsonArray loaders;
     for (const auto& loader : target.loaders(kind))
         loaders.append("categories:" + loader);
-    const QJsonArray facets{ QJsonArray{ kind == Kind::Mod ? "project_type:mod" : "project_type:plugin" },
-                             QJsonArray{ "versions:" + target.minecraft }, loaders,
-                             QJsonArray{ "server_side:required", "server_side:optional" } };
+    QJsonArray facets{ QJsonArray{ kind == Kind::Mod ? "project_type:mod" : "project_type:plugin" },
+                       QJsonArray{ "versions:" + target.minecraft }, loaders,
+                       QJsonArray{ "server_side:required", "server_side:optional" } };
     QUrlQuery query;
+    if (!options.categories.isEmpty()) {
+        QJsonArray categories;
+        for (const auto& category : options.categories)
+            categories.append("categories:" + category);
+        facets.append(categories);
+    }
+    if (options.openSource)
+        facets.append(QJsonArray{ "open_source:true" });
+    for (const auto& id : options.excludedProjects)
+        if (validId(id))
+            facets.append(QJsonArray{ "project_id!=" + id });
     query.addQueryItem("query", text);
     query.addQueryItem("facets", QString::fromUtf8(QJsonDocument(facets).toJson(QJsonDocument::Compact)));
-    query.addQueryItem("index", text.isEmpty() ? "downloads" : "relevance");
-    query.addQueryItem("limit", "20");
+    const QStringList sorts{ "relevance", "downloads", "follows", "newest", "updated" };
+    query.addQueryItem("index", sorts.contains(options.sort) ? options.sort : text.isEmpty() ? "downloads" : "relevance");
+    query.addQueryItem("limit", QString::number(qBound(1, options.limit, 100)));
     query.addQueryItem("offset", QString::number(qMax(0, offset)));
     url.setQuery(query);
     return url;
@@ -164,7 +176,7 @@ bool parseSearch(const Target& target, Kind kind, const QJsonDocument& json, QLi
             !intersects(item.value("categories").toArray(), target.loaders(kind)) || !validId(item.value("project_id").toString()))
             continue;
         projects->append({ item.value("project_id").toString(), item.value("title").toString(), item.value("description").toString(),
-                           item.value("slug").toString() });
+                           item.value("slug").toString(), QUrl(item.value("icon_url").toString()) });
     }
     return true;
 }
@@ -189,6 +201,7 @@ bool parseVersion(const Target& target, Kind kind, const QJsonObject& json, Addo
     version.name = json.value("name").toString();
     version.number = json.value("version_number").toString();
     version.kind = kind;
+    version.releaseType = json.value("version_type").toString();
     version.published = QDateTime::fromString(json.value("date_published").toString(), Qt::ISODateWithMs);
     QList<QJsonObject> files, primary;
     for (const auto& item : json.value("files").toArray()) {

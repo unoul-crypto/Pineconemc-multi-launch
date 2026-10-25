@@ -67,7 +67,7 @@ QStringList ServerInstance::launchArguments() const
 QString ServerInstance::validateLaunch() const
 {
     if (ServerContentStore::interrupted(instanceRoot()))
-        return tr("Recover the interrupted installation in Server settings → Mods and plugins before starting this server.");
+        return tr("Recover the interrupted installation on the Mods or Plugins page before starting this server.");
     if (m_changingSoftware)
         return tr("Wait for the server software installation to finish.");
     const auto min = m_settings->get("ServerMinMem").toInt();

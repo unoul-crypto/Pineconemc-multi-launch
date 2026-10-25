@@ -108,6 +108,7 @@ void VariableSizedImageObject::drawObject(QPainter* painter,
 
 void VariableSizedImageObject::flush()
 {
+    ++m_generation;
     m_fetching_images.clear();
 }
 
@@ -133,6 +134,10 @@ void VariableSizedImageObject::parseImage(QTextDocument* doc, std::shared_ptr<Im
 
 void VariableSizedImageObject::loadImage(QTextDocument* doc, std::shared_ptr<ImageMetadata> meta)
 {
+    if (!APPLICATION_DYN || (meta->url.scheme() != "https" && meta->url.scheme() != "http") || meta->url.host().isEmpty() ||
+        !meta->url.userInfo().isEmpty())
+        return;
+    const auto generation = m_generation;
     m_fetching_images.insert(meta->url);
 
     MetaEntryPtr entry = APPLICATION->metacache()->resolveEntry(
@@ -159,19 +164,19 @@ void VariableSizedImageObject::loadImage(QTextDocument* doc, std::shared_ptr<Ima
 
         m_fetching_images.remove(source_url);
     };
-    connect(job, &NetJob::succeeded, this, [this, full_entry_path, source_url, loadImage] {
+    connect(job, &NetJob::succeeded, this, [this, full_entry_path, source_url, loadImage, generation] {
         qDebug() << "Loaded resource at:" << full_entry_path;
         // If we flushed, don't proceed.
-        if (!m_fetching_images.contains(source_url))
+        if (generation != m_generation || !m_fetching_images.contains(source_url))
             return;
 
         QImage image(full_entry_path);
         loadImage(image);
     });
-    connect(job, &NetJob::failed, this, [this, full_entry_path, source_url, loadImage](QString reason) {
+    connect(job, &NetJob::failed, this, [this, full_entry_path, source_url, loadImage, generation](QString reason) {
         qWarning() << "Failed resource at:" << full_entry_path << "because:" << reason;
         // If we flushed, don't proceed.
-        if (!m_fetching_images.contains(source_url))
+        if (generation != m_generation || !m_fetching_images.contains(source_url))
             return;
 
         loadImage(QImage());

@@ -12,10 +12,8 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QVBoxLayout>
-#include "Application.h"
 #include "server/PropertiesFile.h"
 #include "server/ServerInstance.h"
-#include "ui/dialogs/ServerContentDialog.h"
 #include "ui/dialogs/ServerSoftwareDialog.h"
 #include "ui/widgets/ServerOptionsWidget.h"
 
@@ -38,16 +36,6 @@ ServerSettingsPage::ServerSettingsPage(ServerInstance* instance, QWidget* parent
     auto* changeSoftware = new QPushButton(tr("Change software / version…"), m_editable);
     changeSoftware->setObjectName("changeServerSoftware");
     contents->addWidget(changeSoftware);
-    auto* content = new QPushButton(tr("Mods and plugins…"), m_editable);
-    content->setObjectName("serverContent");
-    contents->addWidget(content);
-    connect(content, &QPushButton::clicked, this, [this] {
-        if (!m_instance->isChangingSoftware() && apply()) {
-            auto* dialog = new ServerContentDialog(m_instance, APPLICATION->network(), this);
-            dialog->setAttribute(Qt::WA_DeleteOnClose);
-            dialog->show();
-        }
-    });
     connect(changeSoftware, &QPushButton::clicked, this, [this] {
         if (m_instance->isRunning() || m_instance->isChangingSoftware() || !apply())
             return;

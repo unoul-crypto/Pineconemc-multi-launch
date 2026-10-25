@@ -5,7 +5,7 @@
 #include <QPushButton>
 #include <QShortcut>
 
-ReviewMessageBox::ReviewMessageBox(QWidget* parent, [[maybe_unused]] QString const& title, [[maybe_unused]] QString const& icon)
+ReviewMessageBox::ReviewMessageBox(QWidget* parent, [[maybe_unused]] const QString& title, [[maybe_unused]] const QString& icon)
     : QDialog(parent), ui(new Ui::ReviewMessageBox)
 {
     ui->setupUi(this);
@@ -60,6 +60,9 @@ void ReviewMessageBox::appendResource(ResourceInformation&& info)
     auto itemTop = new QTreeWidgetItem(ui->modTreeWidget);
     itemTop->setCheckState(0, info.enabled ? Qt::CheckState::Checked : Qt::CheckState::Unchecked);
     itemTop->setText(0, info.name);
+    itemTop->setData(0, Qt::UserRole + 1, info.id);
+    if (info.locked)
+        itemTop->setFlags(itemTop->flags() & ~Qt::ItemIsUserCheckable);
     if (!info.enabled) {
         itemTop->setToolTip(0, tr("Mod was disabled as it may be already installed."));
     }
@@ -85,8 +88,10 @@ void ReviewMessageBox::appendResource(ResourceInformation&& info)
             }
         }
 
-        ui->toggleDepsButton->show();
-        m_deps << itemTop;
+        if (!info.locked) {
+            ui->toggleDepsButton->show();
+            m_deps << itemTop;
+        }
     }
 
     auto versionTypeItem = new QTreeWidgetItem(itemTop);
@@ -119,6 +124,16 @@ void ReviewMessageBox::retranslateUi(QString resources_name)
 
     ui->explainLabel->setText(tr("You're about to download the following %1:").arg(resources_name));
     ui->onlyCheckedLabel->setText(tr("Only %1 with a check will be downloaded!").arg(resources_name));
+}
+QStringList ReviewMessageBox::deselectedResourceIds() const
+{
+    QStringList result;
+    for (int i = 0; i < ui->modTreeWidget->topLevelItemCount(); ++i) {
+        const auto* item = ui->modTreeWidget->topLevelItem(i);
+        if (item->checkState(0) == Qt::Unchecked && !item->data(0, Qt::UserRole + 1).toString().isEmpty())
+            result.append(item->data(0, Qt::UserRole + 1).toString());
+    }
+    return result;
 }
 void ReviewMessageBox::on_toggleDepsButton_clicked()
 {

@@ -70,4 +70,5 @@ class VariableSizedImageObject final : public QObject, public QTextObjectInterfa
     QString m_meta_entry;
 
     QSet<QUrl> m_fetching_images;
+    quint64 m_generation = 0;
 };

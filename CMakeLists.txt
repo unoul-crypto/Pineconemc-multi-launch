@@ -185,7 +185,7 @@ set(Launcher_LEGACY_FMLLIBS_BASE_URL "https://files.pineconemc.ru/fmllibs/" CACH
 set(Launcher_VERSION_MAJOR 11)
 set(Launcher_VERSION_MINOR 1)
 set(Launcher_VERSION_PATCH 1)
-set(Launcher_MULTI_LAUNCH_REVISION 8)
+set(Launcher_MULTI_LAUNCH_REVISION 9)
 
 set(Launcher_VERSION_NAME "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}-multi-launch.${Launcher_MULTI_LAUNCH_REVISION}")
 set(Launcher_VERSION_NAME4 "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}.${Launcher_MULTI_LAUNCH_REVISION}")
@@ -363,6 +363,7 @@ if (NOT APPLE AND (NOT Launcher_UPDATER_GITHUB_REPO STREQUAL "" AND NOT Launcher
 endif()
 
 if(NOT (UNIX AND APPLE))
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/qtimageformats" DESTINATION "licenses")
     # Install "portable.txt" if selected component is "portable"
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${Launcher_Portable_File}" DESTINATION "." COMPONENT portable EXCLUDE_FROM_ALL)
 endif()

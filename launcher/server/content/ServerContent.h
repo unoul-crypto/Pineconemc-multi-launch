@@ -20,6 +20,16 @@ struct Target {
 };
 struct Project {
     QString id, title, description, slug;
+    QUrl icon;
+};
+struct SearchOptions {
+    QString sort;
+    QStringList categories, excludedProjects;
+    bool openSource = false;
+    int limit = 50;
+};
+struct Selection {
+    QString projectId, versionId;
 };
 struct Dependency {
     QString projectId, versionId, type;
@@ -32,6 +42,7 @@ struct AddonVersion {
     QDateTime published;
     QList<Dependency> dependencies;
     Kind kind = Kind::Mod;
+    QString releaseType;
 };
 struct Installed {
     QString projectId, versionId, name, filename, sha512;
@@ -45,7 +56,7 @@ bool validId(const QString& id);
 bool safeFilename(const QString& filename);
 bool validHash(const QString& sha512);
 bool serverProject(const QJsonObject& project);
-QUrl searchUrl(const Target& target, Kind kind, const QString& query, int offset = 0);
+QUrl searchUrl(const Target& target, Kind kind, const QString& query, int offset = 0, const SearchOptions& options = {});
 QUrl versionsUrl(const Target& target, Kind kind, const QString& project);
 QUrl projectUrl(const QString& project);
 QUrl versionUrl(const QString& version);

@@ -54,6 +54,21 @@ std::unique_ptr<ModFilterWidget> ModFilterWidget::create(MinecraftInstance* inst
 {
     return std::unique_ptr<ModFilterWidget>(new ModFilterWidget(instance, extended));
 }
+std::unique_ptr<ModFilterWidget> ModFilterWidget::createServer(const QString& minecraft)
+{
+    auto widget = std::unique_ptr<ModFilterWidget>(new ModFilterWidget(nullptr, true, true));
+    widget->setServerMinecraft(minecraft);
+    return widget;
+}
+void ModFilterWidget::setServerMinecraft(const QString& minecraft)
+{
+    if (m_versions_proxy)
+        return;
+    m_filter->versions.clear();
+    m_filter->versions.emplace_back(minecraft);
+    ui->version->clear();
+    ui->version->addItem(minecraft);
+}
 
 class VersionBasicModel : public QIdentityProxyModel {
     Q_OBJECT
@@ -108,10 +123,34 @@ class AllVersionProxyModel : public QSortFilterProxyModel {
     }
 };
 
-ModFilterWidget::ModFilterWidget(MinecraftInstance* instance, bool extended)
+ModFilterWidget::ModFilterWidget(MinecraftInstance* instance, bool extended, bool server)
     : QTabWidget(), ui(new Ui::ModFilterWidget), m_instance(instance), m_filter(new Filter())
 {
     ui->setupUi(this);
+    if (server) {
+        // Reuse the client filter UI without fetching client metadata or allowing
+        // Minecraft/loader filters to override the server's compatibility profile.
+        ui->loaderGroup->hide();
+        ui->versions->hide();
+        ui->showAllVersions->hide();
+        ui->version->setEnabled(false);
+        ui->environmentGroup->setEnabled(false);
+        ui->serverSide->setChecked(true);
+        ui->clientSide->setChecked(false);
+        ui->unknownCb->hide();
+        ui->releaseCb->setChecked(true);
+        m_filter->side = ModPlatform::Side::ServerSide;
+        m_filter->hideInstalled = false;
+        m_filter->openSource = false;
+        m_filter->releases = { ModPlatform::IndexedVersionType::Release };
+        connect(ui->releaseCb, &QCheckBox::toggled, this, &ModFilterWidget::onReleaseFilterChanged);
+        connect(ui->betaCb, &QCheckBox::toggled, this, &ModFilterWidget::onReleaseFilterChanged);
+        connect(ui->alphaCb, &QCheckBox::toggled, this, &ModFilterWidget::onReleaseFilterChanged);
+        connect(ui->hideInstalled, &QCheckBox::toggled, this, &ModFilterWidget::onHideInstalledFilterChanged);
+        connect(ui->openSource, &QCheckBox::toggled, this, &ModFilterWidget::onOpenSourceFilterChanged);
+        setHidden(true);
+        return;
+    }
 
     m_versions_proxy = new VersionProxyModel(this);
     m_versions_proxy->setFilter(BaseVersionList::TypeRole, Filters::equals("release"));

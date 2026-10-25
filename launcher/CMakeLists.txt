@@ -42,6 +42,12 @@ set(CORE_SOURCES
     server/content/ServerContentInstallTask.cpp
     ui/dialogs/ServerContentDialog.h
     ui/dialogs/ServerContentDialog.cpp
+    ui/widgets/ProjectIconCache.h
+    ui/widgets/ProjectIconCache.cpp
+    ui/widgets/ServerContentWidget.h
+    ui/widgets/ServerContentWidget.cpp
+    ui/pages/instance/ServerContentPage.h
+    ui/pages/instance/ServerContentPage.cpp
     server/ServerHybridCatalog.h
     server/ServerHybridCatalog.cpp
     server/ServerCatalogTask.h

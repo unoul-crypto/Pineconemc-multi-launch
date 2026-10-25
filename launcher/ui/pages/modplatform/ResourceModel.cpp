@@ -25,6 +25,7 @@
 #include "modplatform/ModIndex.h"
 
 #include "ui/widgets/ProjectItem.h"
+#include "ui/widgets/ProjectIconCache.h"
 
 namespace ResourceDownload {
 
@@ -336,52 +337,21 @@ std::optional<ResourceAPI::SortingMethod> ResourceModel::getCurrentSortingMethod
     return sort;
 }
 
-std::optional<QIcon> ResourceModel::getIcon(QModelIndex& index, const QUrl& url)
+std::optional<QIcon> ResourceModel::getIcon(QModelIndex&, const QUrl& url)
 {
-    QPixmap pixmap;
-    if (QPixmapCache::find(url.toString(), &pixmap)) {
-        return { pixmap };
-    }
-
-    if (!m_current_icon_job) {
-        m_current_icon_job.reset(new NetJob("IconJob", APPLICATION->network()));
-        m_current_icon_job->setAskRetry(false);
-    }
-
-    if (m_currently_running_icon_actions.contains(url)) {
+    if (!APPLICATION_DYN)
         return {};
+    if (!m_icons) {
+        m_icons = new ProjectIconCache(APPLICATION->network(), this);
+        connect(m_icons, &ProjectIconCache::ready, this, [this](const QUrl& loaded) {
+            for (int row = 0; row < m_packs.size(); ++row)
+                if (m_packs[row]->logoUrl == loaded)
+                    emit dataChanged(index(row), index(row), { Qt::DecorationRole });
+        });
     }
-    if (m_failed_icon_actions.contains(url)) {
-        return {};
-    }
-
-    auto cacheEntry = APPLICATION->metacache()->resolveEntry(
-        metaEntryBase(),
-        QString("logos/%1").arg(QString(QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Algorithm::Sha1).toHex())));
-    auto iconFetchAction = Net::ApiDownload::makeCached(url, cacheEntry);
-
-    auto fullFilePath = cacheEntry->getFullPath();
-    connect(iconFetchAction.get(), &Task::succeeded, this, [this, url, fullFilePath, index] {
-        auto icon = QIcon(fullFilePath);
-        QPixmapCache::insert(url.toString(), icon.pixmap(icon.actualSize({ 64, 64 })));
-
-        m_currently_running_icon_actions.remove(url);
-
-        emit dataChanged(index, index, { Qt::DecorationRole });
-    });
-    connect(iconFetchAction.get(), &Task::failed, this, [this, url] {
-        m_currently_running_icon_actions.remove(url);
-        m_failed_icon_actions.insert(url);
-    });
-
-    m_currently_running_icon_actions.insert(url);
-
-    m_current_icon_job->addNetAction(iconFetchAction);
-    if (!m_current_icon_job->isRunning()) {
-        QMetaObject::invokeMethod(m_current_icon_job.get(), &NetJob::start);
-    }
-
-    return {};
+    const auto entry = APPLICATION->metacache()->resolveEntry(metaEntryBase(), ProjectIconCache::cacheKey(url));
+    const auto icon = m_icons->icon(url, entry->getFullPath());
+    return icon.isNull() ? std::nullopt : std::optional<QIcon>(icon);
 }
 
 /* Default callbacks */

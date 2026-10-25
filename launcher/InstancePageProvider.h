@@ -4,6 +4,8 @@
 #include "minecraft/MinecraftInstance.h"
 #include "server/ServerInstance.h"
 #include "ui/pages/instance/ServerSettingsPage.h"
+#include "ui/pages/instance/ServerContentPage.h"
+#include "Application.h"
 #include "ui/pages/BasePage.h"
 #include "ui/pages/BasePageProvider.h"
 #include "ui/pages/instance/InstanceSettingsPage.h"
@@ -32,6 +34,8 @@ class InstancePageProvider : protected QObject, public BasePageProvider {
         values.append(new LogPage(inst));
         if (auto* server = dynamic_cast<ServerInstance*>(inst)) {
             values.append(new ServerSettingsPage(server));
+            values.append(new ServerContentPage(server, ServerContent::Kind::Mod, APPLICATION->network()));
+            values.append(new ServerContentPage(server, ServerContent::Kind::Plugin, APPLICATION->network()));
             values.append(new NotesPage(server));
             values.append(new OtherLogsPage("logs", tr("Other Logs"), "Other-Logs", inst));
             return values;

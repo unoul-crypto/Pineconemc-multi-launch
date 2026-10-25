@@ -19,6 +19,7 @@
 #include "server/ServerLaunchTask.h"
 #include "server/content/ServerContent.h"
 #include "settings/INISettingsObject.h"
+#include "ui/dialogs/ReviewMessageBox.h"
 #include "ui/dialogs/ServerContentDialog.h"
 #include "ui/pages/instance/ServerSettingsPage.h"
 #include "ui/widgets/ServerOptionsWidget.h"
@@ -81,18 +82,20 @@ class ServerUITest : public QObject {
             QTest::qWait(30);
             QVERIFY(dialog.grab().save(qEnvironmentVariable("PINECONE_CONTENT_PREVIEW")));
         }
+        QVERIFY(!dialog.findChild<QPushButton*>("serverContentInstall")->isEnabled());
+        dialog.findChild<QPushButton*>("serverContentSelect")->click();
+        QCOMPARE(dialog.findChild<QListWidget*>("serverContentSelection")->count(), 1);
         QVERIFY(dialog.findChild<QPushButton*>("serverContentInstall")->isEnabled());
         QTimer confirm;
         connect(&confirm, &QTimer::timeout, this, [] {
             for (auto* widget : QApplication::topLevelWidgets())
-                if (auto* box = qobject_cast<QMessageBox*>(widget))
-                    if (box->standardButtons().testFlag(QMessageBox::Yes))
-                        box->button(QMessageBox::Yes)->click();
+                if (auto* box = qobject_cast<ReviewMessageBox*>(widget))
+                    box->accept();
         });
         confirm.start(10);
         dialog.findChild<QPushButton*>("serverContentInstall")->click();
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.filePath("server/mods/project.jar")), 10000);
-        QTRY_VERIFY_WITH_TIMEOUT(!instance.isChangingSoftware() && dialog.findChild<QPushButton*>("serverContentInstall")->isEnabled(),
+        QTRY_VERIFY_WITH_TIMEOUT(!instance.isChangingSoftware() && dialog.findChild<QListWidget*>("serverContentSelection")->count() == 0,
                                  10000);
         confirm.stop();
         dialog.findChild<QComboBox*>("serverContentKind")->setCurrentIndex(1);
